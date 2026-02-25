@@ -48,15 +48,24 @@ When Cowrite starts, it runs an HTTP server at `http://localhost:3377`. Open it 
 
 Select any text in the preview. A **Comment** button appears — click it to open the comment form. Your text selection stays intact, so you can still copy-paste normally.
 
-### 4. The agent handles your comments
+### 4. Start the background watcher (recommended)
 
-Comments reach the agent through three mechanisms:
+In your Claude Code session, type:
 
-- **`UserPromptSubmit` hook** — Auto-installed on first run. Whenever you send any message, pending comments are injected into the agent's context. The agent makes the change, replies in the browser preview, and resolves the comment.
-- **`Stop` hook** — Also auto-installed. When the agent finishes any task, it checks for pending comments before going idle. Catches comments that arrive while the agent is busy.
-- **`/watch` skill** — For hands-free operation. Type `/watch` once and a background watcher handles comments as they arrive without blocking your main conversation.
+```
+/watch
+```
 
-### 5. Auto-installed integration
+This starts a background watcher that handles comments as they arrive — without blocking your main conversation. You only need to do this once per session.
+
+### 5. The agent handles your comments
+
+Even without `/watch`, comments reach the agent through auto-installed hooks:
+
+- **`UserPromptSubmit` hook** — Whenever you send any message, pending comments are injected into the agent's context. The agent makes the change, replies in the browser preview, and resolves the comment.
+- **`Stop` hook** — When the agent finishes any task, it checks for pending comments before going idle. Catches comments that arrive while the agent is busy.
+
+### 6. Auto-installed integration
 
 On first run, `cowrite serve` installs into your project's `.claude/` directory:
 - **Hooks** (`UserPromptSubmit` + `Stop`) — surface pending comments to the agent automatically
