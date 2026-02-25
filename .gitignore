@@ -3,3 +3,5 @@ dist/
 .cowrite-comments.json
 *.tsbuildinfo
 .DS_Store
+.claude/
+CLAUDE.md
