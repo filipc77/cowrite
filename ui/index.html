@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cowrite — Live Preview</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Cowrite</h1>
+    <span class="file-path" id="filePath">—</span>
+    <span class="status" id="status">Connecting...</span>
+  </header>
+
+  <main>
+    <div class="content-panel" id="contentPanel">
+      <div id="fileContent"></div>
+    </div>
+
+    <div class="sidebar" id="sidebar">
+      <h2>Comments <span class="comment-count" id="commentCount">0</span></h2>
+      <div id="commentList"></div>
+    </div>
+  </main>
+
+  <!-- Floating comment button/form -->
+  <div class="comment-popup" id="commentPopup" hidden>
+    <div class="popup-selection" id="popupSelection"></div>
+    <textarea id="commentInput" placeholder="Leave a comment..." rows="3"></textarea>
+    <div class="popup-actions">
+      <button id="commentSubmit">Submit</button>
+      <button id="commentCancel" class="secondary">Cancel</button>
+    </div>
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>

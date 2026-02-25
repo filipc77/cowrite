@@ -1,0 +1,72 @@
+{
+  "name": "cowrite",
+  "displayName": "Cowrite",
+  "description": "Live commenting for coding agent sessions — add comments directly in VS Code",
+  "version": "0.1.0",
+  "publisher": "cowrite",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "workspaceContains:.cowrite-comments.json",
+    "onCommand:cowrite.addComment"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cowrite.addComment",
+        "title": "Cowrite: Add Comment"
+      },
+      {
+        "command": "cowrite.resolveThread",
+        "title": "Resolve",
+        "icon": "$(check)"
+      },
+      {
+        "command": "cowrite.unresolveThread",
+        "title": "Reopen",
+        "icon": "$(issue-reopened)"
+      },
+      {
+        "command": "cowrite.refreshComments",
+        "title": "Cowrite: Refresh Comments"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "cowrite.addComment",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "cowrite.resolveThread",
+          "group": "inline",
+          "when": "commentThread =~ /pending/"
+        },
+        {
+          "command": "cowrite.unresolveThread",
+          "group": "inline",
+          "when": "commentThread =~ /resolved/"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "lint": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^22.13.5",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  }
+}
