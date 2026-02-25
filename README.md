@@ -1,10 +1,10 @@
 # Cowrite
 
-Live commenting plugin for coding agent sessions. Select text in a browser preview, leave comments, and your coding agent receives them in real time via MCP.
+Live commenting plugin for coding agent sessions. Select text in a browser preview, leave comments, and your coding agent receives them in real time via MCP. Works with any MCP-compatible coding agent — optimized for Claude Code with auto-installed hooks and skills.
 
 **The problem:** When working with AI coding agents, there's no way to give inline, contextual feedback on specific parts of a file while the agent is working. You either interrupt with a chat message (losing spatial context) or wait until the agent is done.
 
-**The solution:** Cowrite opens a live preview of any text file where you can select text and leave comments. The comments propagate directly into the agent session via MCP tools — so the agent can act on your feedback immediately.
+**The solution:** Cowrite opens a live preview of any text file where you can select text and leave comments. The comments propagate directly into the agent session via MCP tools — so the agent can act on your feedback immediately. Any agent that supports MCP can use Cowrite's tools (`get_pending_comments`, `resolve_comment`, etc.). Claude Code users get additional integration: auto-installed hooks that surface comments on every prompt, and `/review` + `/watch` skills.
 
 ## How it works
 
@@ -18,7 +18,7 @@ Browser (Preview UI)          Node.js Process              Claude Code
 └─────────────────┘     │  │ CommentStore   │  │     │  resolve     │
                          │  │ (shared memory)│  │     │  reply       │
                          │  └───────┬────────┘  │     │  get_annotated│
-                         │          │           │     │              │
+                         │          │           │     │  wait_for_comment│
                          │  ┌───────▼────────┐  │     │              │
                          │  │ MCP Server     │◄─╋────►│              │
                          │  │ (stdio)        │  │     │              │
@@ -30,52 +30,44 @@ Browser (Preview UI)          Node.js Process              Claude Code
 
 A single Node.js process runs both the HTTP/WebSocket preview server and the MCP stdio server, sharing one in-memory comment store.
 
-## Installation
-
-```bash
-npm install -g cowrite
-```
-
-Or use directly with `npx`:
-
-```bash
-npx cowrite preview ./README.md
-```
-
 ## Quick Start
 
 ### 1. Add Cowrite as an MCP server in Claude Code
 
-```bash
-# Preview mode — opens browser preview + MCP server on stdio
-claude mcp add cowrite -- npx cowrite preview ./README.md
+No install required — `npx` downloads and runs it automatically:
 
-# Or serve mode — MCP only, no preview UI
-claude mcp add cowrite -- npx cowrite serve
+```bash
+claude mcp add -s user cowrite -- npx -y @filipc77/cowrite serve
 ```
 
 ### 2. Open the preview
 
-When using preview mode, Cowrite starts an HTTP server at `http://localhost:3377`. Open it in your browser.
+When Cowrite starts, it runs an HTTP server at `http://localhost:3377`. Open it in your browser, pick a file, and you'll see a live preview.
 
 ### 3. Select text and comment
 
-Select any text in the preview and click the comment button that appears. Write your feedback and submit.
+Select any text in the preview. A **Comment** button appears — click it to open the comment form. Your text selection stays intact, so you can still copy-paste normally.
 
-### 4. The agent sees your comments
+### 4. The agent handles your comments
 
-The agent can use these MCP tools to read and respond to your comments:
+Comments reach the agent through three mechanisms:
 
-- `get_pending_comments` — retrieve unresolved comments
-- `resolve_comment` — mark a comment as addressed
-- `reply_to_comment` — send a reply visible in the browser
-- `get_file_with_annotations` — see the file with inline comment markers
+- **`UserPromptSubmit` hook** — Auto-installed on first run. Whenever you send any message, pending comments are injected into the agent's context. The agent makes the change, replies in the browser preview, and resolves the comment.
+- **`Stop` hook** — Also auto-installed. When the agent finishes any task, it checks for pending comments before going idle. Catches comments that arrive while the agent is busy.
+- **`/watch` skill** — For hands-free operation. Type `/watch` once and a background watcher handles comments as they arrive without blocking your main conversation.
+
+### 5. Auto-installed integration
+
+On first run, `cowrite serve` installs into your project's `.claude/` directory:
+- **Hooks** (`UserPromptSubmit` + `Stop`) — surface pending comments to the agent automatically
+- **Skills** (`/review` + `/watch`) — manual and background comment handling
+- Hooks are merged into existing `settings.json` — your other settings are preserved
 
 ## CLI Reference
 
 ```
-cowrite preview <file> [--port N]   Open browser preview + start MCP server
-cowrite serve                        MCP-only mode (stdio, no preview)
+cowrite preview <file> [--port N]   Open browser preview for a specific file + start MCP server
+cowrite serve [--port N]             Start MCP server + preview server (browse any file)
 
 Options:
   --port, -p    Port for preview server (default: 3377)
@@ -122,6 +114,14 @@ Hello world, this is a test. [COMMENT #a1b2c3d4: "Should be uppercase"]
 |-----------|------|-------------|
 | `file` | string | File path to annotate |
 
+### `wait_for_comment`
+
+Blocks until a new comment is posted in the live preview, then returns it. If pending comments already exist, returns the latest one immediately. Times out after 30 seconds by default.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `timeout` | number | 30 | Max seconds to wait |
+
 ## MCP Resources
 
 | URI | Description |
@@ -135,16 +135,29 @@ Hello world, this is a test. [COMMENT #a1b2c3d4: "Should be uppercase"]
 - **Persistent comments** — Comments are saved to `.cowrite-comments.json` in the project directory and survive restarts.
 - **Offset-based anchoring** — Comments are anchored by character offset and selected text, not line numbers. When the file changes, Cowrite searches for the selected text near the original offset to re-anchor.
 - **Agent replies** — The agent can reply to comments, and replies appear in the browser sidebar in real time.
+- **Auto-port selection** — If port 3377 is in use (e.g. running cowrite in multiple repos), it automatically tries the next port (3378, 3379, etc.).
+- **Auto-installed hooks** — `cowrite serve` automatically installs Claude Code `UserPromptSubmit` and `Stop` hooks that surface pending comments to the agent. Merges with existing settings.
 
-## Using the `/review` Skill
+## Skills
 
-Cowrite ships with a built-in skill. When working in Claude Code with Cowrite active, you can use:
+Cowrite ships with two built-in Claude Code skills (auto-installed to `.claude/skills/`):
 
-```
-/review
-```
+- **`/review`** — Check all pending comments, make changes, reply in the preview, and resolve each one.
+- **`/watch`** — Start a background watcher that handles comments as they arrive. Does **not** block the main conversation — you can keep working normally while comments are handled in the background.
 
-This instructs the agent to check all pending comments, address them, reply, and resolve each one.
+## How Comments Flow
+
+1. You select text in the browser and submit a comment
+2. The browser sends a WebSocket message to the server
+3. The server adds the comment to the shared `CommentStore`
+4. The store persists to `.cowrite-comments.json` and emits events
+5. The agent receives the comment via one of:
+   - The `Stop` hook catching it when the agent finishes its current task
+   - The `UserPromptSubmit` hook injecting it on the next user message
+   - `wait_for_comment` returning immediately (if `/watch` is active)
+   - The agent calling `get_pending_comments` directly
+6. The agent makes the change, calls `reply_to_comment` (visible in the browser), then `resolve_comment`
+7. The browser receives the update via WebSocket and shows the reply and resolved state
 
 ## Development
 
@@ -170,7 +183,7 @@ npm run build
 
 ```
 cowrite/
-├── bin/cowrite.ts              # CLI entry point
+├── bin/cowrite.ts              # CLI entry point (auto-installs hooks)
 ├── src/
 │   ├── types.ts                # TypeScript interfaces
 │   ├── comment-store.ts        # In-memory comment store with persistence
@@ -182,20 +195,11 @@ cowrite/
 │   ├── index.html              # Browser preview app
 │   ├── styles.css              # Dark theme styles
 │   └── client.js               # Selection handling, WebSocket client
-├── skills/review/SKILL.md      # Agent skill for reviewing comments
+├── .claude/
+│   ├── skills/                 # Agent skills (review, watch)
+│   └── hooks/                  # Auto-installed comment injection hook
 └── test/                       # Vitest tests
 ```
-
-## How Comments Flow
-
-1. You select text in the browser and submit a comment
-2. The browser sends a WebSocket message to the server
-3. The server adds the comment to the shared `CommentStore`
-4. The store emits a `"change"` event
-5. The MCP server sends a `notifications/resources/updated` notification
-6. The agent calls `get_pending_comments` to retrieve the comment
-7. The agent makes changes, then calls `resolve_comment`
-8. The browser receives the update via WebSocket and shows the resolved state
 
 ## License
 

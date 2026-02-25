@@ -1,13 +1,13 @@
 {
-  "name": "cowrite",
-  "version": "0.1.0",
+  "name": "@filipc77/cowrite",
+  "version": "0.4.19",
   "description": "Live commenting plugin for coding agent sessions",
   "type": "module",
   "bin": {
     "cowrite": "./dist/bin/cowrite.js"
   },
   "scripts": {
-    "dev": "tsx bin/cowrite.ts preview",
+    "dev": "tsx bin/cowrite.ts serve",
     "build": "tsup",
     "lint": "tsc --noEmit",
     "test": "vitest run",
@@ -17,7 +17,12 @@
     "dist",
     "ui"
   ],
-  "keywords": ["mcp", "claude", "comments", "live-preview"],
+  "keywords": [
+    "mcp",
+    "claude",
+    "comments",
+    "live-preview"
+  ],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

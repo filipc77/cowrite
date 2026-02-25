@@ -4,13 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cowrite — Live Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
-    <h1>Cowrite</h1>
-    <span class="file-path" id="filePath">—</span>
-    <span class="status" id="status">Connecting...</span>
+    <div class="header-left">
+      <h1><span class="logo-mark">//</span> Cowrite</h1>
+      <div class="header-divider"></div>
+      <div class="file-picker" id="filePickerWrapper">
+        <svg class="file-picker-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+        <input type="text" id="filePicker" list="fileList" placeholder="Open file..." autocomplete="off" />
+        <datalist id="fileList"></datalist>
+      </div>
+      <span class="file-path" id="filePath"></span>
+    </div>
+    <div class="header-right">
+      <span class="status" id="status">
+        <span class="status-dot"></span>
+        Connecting...
+      </span>
+      <div class="header-divider"></div>
+      <label class="theme-toggle" title="Toggle light/dark mode">
+        <input type="checkbox" id="themeToggle" />
+        <span class="toggle-track">
+          <span class="toggle-thumb"><span class="toggle-icon"></span></span>
+        </span>
+      </label>
+      <span class="toggle-label">Dark</span>
+    </div>
   </header>
 
   <main>
@@ -19,18 +43,24 @@
     </div>
 
     <div class="sidebar" id="sidebar">
-      <h2>Comments <span class="comment-count" id="commentCount">0</span></h2>
+      <div class="sidebar-header">
+        <h2>Comments <span class="comment-count" id="commentCount">0</span></h2>
+      </div>
       <div id="commentList"></div>
     </div>
   </main>
 
-  <!-- Floating comment button/form -->
+  <!-- Floating comment button (appears on text selection) -->
+  <button class="comment-trigger" id="commentTrigger" hidden>Comment</button>
+
+  <!-- Comment form (appears when comment button is clicked) -->
   <div class="comment-popup" id="commentPopup" hidden>
+    <div class="popup-header">Selection</div>
     <div class="popup-selection" id="popupSelection"></div>
     <textarea id="commentInput" placeholder="Leave a comment..." rows="3"></textarea>
     <div class="popup-actions">
-      <button id="commentSubmit">Submit</button>
       <button id="commentCancel" class="secondary">Cancel</button>
+      <button id="commentSubmit">Submit</button>
     </div>
   </div>
 

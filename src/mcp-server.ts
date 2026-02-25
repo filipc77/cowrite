@@ -3,18 +3,18 @@ import { z } from "zod";
 import type { CommentStore } from "./comment-store.js";
 import { annotateFileWithComments } from "./utils.js";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 
 export function createMcpServer(store: CommentStore, projectDir: string): McpServer {
-  const server = new McpServer({
-    name: "cowrite",
-    version: "0.1.0",
-  });
+  const server = new McpServer(
+    { name: "cowrite", version: "0.1.0" },
+    { capabilities: { logging: {} } },
+  );
 
   // Tool: get_pending_comments
-  server.tool(
+  const getPendingTool = server.tool(
     "get_pending_comments",
-    "Get comments from the live preview. Returns unresolved comments by default.",
+    "Get comments from the live preview (0 pending). Call this first to catch comments posted before you started listening.",
     {
       file: z.string().optional().describe("Filter by file path"),
       status: z.enum(["pending", "resolved", "all"]).optional().describe("Filter by status (default: pending)"),
@@ -105,6 +105,75 @@ export function createMcpServer(store: CommentStore, projectDir: string): McpSer
     }
   );
 
+  // Tool: wait_for_comment
+  server.tool(
+    "wait_for_comment",
+    "Block until a new comment is posted in the live preview, then return it. This is the primary way to receive real-time comments — call it again immediately after handling each comment to keep listening. If it times out, call it again.",
+    {
+      timeout: z.number().optional().describe("Max seconds to wait (default: 30)"),
+    },
+    ({ timeout }, { signal }: { signal?: AbortSignal }) => {
+      const maxWait = (timeout ?? 30) * 1000;
+
+      // Check for comments that arrived while no one was listening
+      const pending = store.getAll({ status: "pending" });
+      if (pending.length > 0) {
+        const latest = pending[pending.length - 1];
+        const file = relative(projectDir, latest.file);
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({ ...latest, file }, null, 2),
+          }],
+        };
+      }
+
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          cleanup();
+          const count = store.getAll({ status: "pending" }).length;
+          resolve({
+            content: [{ type: "text" as const, text: count > 0
+              ? `Timeout, but ${count} pending comment(s) exist. Call get_pending_comments now.`
+              : "No new comments yet. Call wait_for_comment again to keep listening." }],
+          });
+        }, maxWait);
+
+        const onComment = (comment: { id: string; file: string; selectedText: string; comment: string }) => {
+          cleanup();
+          const file = relative(projectDir, comment.file);
+          resolve({
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify({ ...comment, file }, null, 2),
+            }],
+          });
+        };
+
+        const onAbort = () => {
+          cleanup();
+          resolve({
+            content: [{ type: "text" as const, text: "Cancelled. Call wait_for_comment again to resume listening." }],
+          });
+        };
+
+        const cleanup = () => {
+          clearTimeout(timer);
+          store.off("new_comment", onComment);
+          signal?.removeEventListener("abort", onAbort);
+        };
+
+        store.on("new_comment", onComment);
+        signal?.addEventListener("abort", onAbort, { once: true });
+
+        // If already aborted before we set up
+        if (signal?.aborted) {
+          onAbort();
+        }
+      });
+    }
+  );
+
   // Resource: cowrite://comments
   server.resource(
     "all-comments",
@@ -126,13 +195,91 @@ export function createMcpServer(store: CommentStore, projectDir: string): McpSer
 
   // Wire store changes to MCP resource notifications
   store.on("change", () => {
+    if (!server.isConnected()) return;
     server.server.notification({
       method: "notifications/resources/updated",
       params: { uri: "cowrite://comments" },
-    }).catch(() => {
-      // Notification may fail if client doesn't support it, that's OK
-    });
+    }).catch(() => {});
   });
+
+  // --- Comment propagation signals ---
+  // Only send signals when an MCP client is actually connected.
+  // 1. Update tool description with pending count + sendToolListChanged
+  // 2. sendLoggingMessage as additional context
+  // Primary real-time mechanism is wait_for_comment via the /watch skill.
+  store.on("new_comment", (comment: { file: string; selectedText: string; comment: string }) => {
+    if (!server.isConnected()) return;
+
+    const count = store.getAll({ status: "pending" }).length;
+    const file = relative(projectDir, comment.file);
+    const selectedPreview = comment.selectedText.length > 80
+      ? comment.selectedText.slice(0, 80) + "..."
+      : comment.selectedText;
+
+    // Signal 1: Update tool description + notify tool list changed
+    try {
+      getPendingTool.update({
+        description: `Get comments from the live preview (${count} pending). Call this first to catch comments posted before you started listening.`,
+      });
+      server.sendToolListChanged();
+    } catch {
+      // Not connected or transport issue — skip
+    }
+
+    // Signal 2: Logging message
+    server.sendLoggingMessage({
+      level: "warning",
+      data: `NEW COMMENT on ${file}: "${comment.comment}" (selected: "${selectedPreview}"). Call get_pending_comments to see it.`,
+    }).catch(() => {});
+
+    // Signal 3: Resource list changed
+    server.server.notification({
+      method: "notifications/resources/list_changed",
+    }).catch(() => {});
+  });
+
+  // Update description count when comments are resolved
+  store.on("change", () => {
+    const count = store.getAll({ status: "pending" }).length;
+    try {
+      getPendingTool.update({
+        description: `Get comments from the live preview (${count} pending). Call this first to catch comments posted before you started listening.`,
+      });
+    } catch {
+      // Ignore — may not be connected yet
+    }
+  });
+
+  // Prompt: cowrite-workflow
+  server.prompt(
+    "cowrite-workflow",
+    "How to process live preview comments in a wait-handle-resolve loop",
+    () => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: [
+              "You are monitoring a live code preview where users leave comments on selected text.",
+              "",
+              "Follow this loop:",
+              "1. Call `get_pending_comments` to check for any comments already posted.",
+              "2. Process each pending comment: read the file, make the requested change or reply, then call `resolve_comment`.",
+              "3. Call `wait_for_comment` to block until the next comment arrives.",
+              "4. When a comment arrives, process it the same way (step 2).",
+              "5. Go back to step 3 and keep listening.",
+              "",
+              "Tips:",
+              "- Use `get_file_with_annotations` to see comments in context within the file.",
+              "- Use `reply_to_comment` to acknowledge or ask clarifying questions.",
+              "- Always `resolve_comment` after addressing feedback.",
+            ].join("\n"),
+          },
+        },
+      ],
+    })
+  );
 
   return server;
 }

@@ -1,9 +1,3 @@
 {
-  "mcpServers": {
-    "cowrite": {
-      "command": "npx",
-      "args": ["tsx", "bin/cowrite.ts", "serve"],
-      "transportType": "stdio"
-    }
-  }
+  "mcpServers": {}
 }

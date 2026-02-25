@@ -3,5 +3,10 @@ dist/
 .cowrite-comments.json
 *.tsbuildinfo
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/skills/**
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/settings.json
 CLAUDE.md

@@ -40,9 +40,16 @@ export class CommentStore extends EventEmitter {
     try {
       const data = await readFile(this.persistPath, "utf-8");
       const arr: Comment[] = JSON.parse(data);
+      const oldIds = new Set(this.comments.keys());
       this.comments.clear();
       for (const c of arr) {
         this.comments.set(c.id, c);
+      }
+      // Emit "new_comment" for comments that didn't exist before
+      for (const c of arr) {
+        if (!oldIds.has(c.id)) {
+          this.emit("new_comment", c);
+        }
       }
       this.emit("change", null);
     } catch {
@@ -96,6 +103,7 @@ export class CommentStore extends EventEmitter {
     };
     this.comments.set(comment.id, comment);
     this.emit("change", comment);
+    this.emit("new_comment", comment);
     this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
     return comment;
   }

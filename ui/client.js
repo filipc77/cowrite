@@ -12,6 +12,9 @@ const statusEl = $("#status");
 const popup = $("#commentPopup");
 const popupSelection = $("#popupSelection");
 const commentInput = $("#commentInput");
+const commentTrigger = $("#commentTrigger");
+const filePicker = $("#filePicker");
+const fileList = $("#fileList");
 
 /** @type {Comment[]} */
 let comments = [];
@@ -20,6 +23,45 @@ let currentContent = "";
 let ws = null;
 let selectionInfo = null;
 
+// --- File Picker ---
+
+async function loadFileList() {
+  try {
+    const res = await fetch("/api/files");
+    const data = await res.json();
+    fileList.innerHTML = "";
+    for (const file of data.files) {
+      const option = document.createElement("option");
+      option.value = file;
+      fileList.appendChild(option);
+    }
+  } catch {
+    // Will retry on reconnect
+  }
+}
+
+function switchFile(file) {
+  if (!file || !ws || ws.readyState !== WebSocket.OPEN) return;
+  send({ type: "switch_file", file });
+  filePicker.value = "";
+  // Update URL without reload
+  const url = new URL(location.href);
+  url.searchParams.set("file", file);
+  history.replaceState(null, "", url.toString());
+}
+
+filePicker.addEventListener("change", () => {
+  const file = filePicker.value.trim();
+  if (file) switchFile(file);
+});
+
+filePicker.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const file = filePicker.value.trim();
+    if (file) switchFile(file);
+  }
+});
+
 // --- WebSocket ---
 
 function connect() {
@@ -27,12 +69,21 @@ function connect() {
   ws = new WebSocket(`${protocol}//${location.host}`);
 
   ws.onopen = () => {
-    statusEl.textContent = "Connected";
+    statusEl.innerHTML = '<span class="status-dot"></span>Connected';
     statusEl.className = "status connected";
+
+    // If URL has ?file= param, switch to that file
+    const params = new URLSearchParams(location.search);
+    const fileParam = params.get("file");
+    if (fileParam) {
+      send({ type: "switch_file", file: fileParam });
+    }
+
+    loadFileList();
   };
 
   ws.onclose = () => {
-    statusEl.textContent = "Disconnected";
+    statusEl.innerHTML = '<span class="status-dot"></span>Disconnected';
     statusEl.className = "status";
     setTimeout(connect, 2000);
   };
@@ -70,67 +121,161 @@ function send(msg) {
 // --- Selection & Comment Creation ---
 
 document.addEventListener("mouseup", (e) => {
-  // Don't trigger when clicking inside popup or sidebar
-  if (popup.contains(e.target) || $("#sidebar").contains(e.target)) return;
+  // Don't trigger when clicking inside popup, sidebar, or trigger button
+  if (popup.contains(e.target) || commentTrigger.contains(e.target) || $("#sidebar").contains(e.target)) return;
 
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed) {
-    hidePopup();
+    hideTrigger();
     return;
   }
 
   const text = selection.toString().trim();
   if (!text) {
-    hidePopup();
+    hideTrigger();
     return;
   }
 
   // Compute character offset in the source content
   const offset = computeOffset(selection, text);
   if (offset === -1) {
-    hidePopup();
+    hideTrigger();
     return;
   }
 
   selectionInfo = { offset, length: text.length, selectedText: text };
 
-  // Position popup near the selection
+  // Show the small "Comment" trigger button near the selection end
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
-  popup.style.left = `${Math.min(rect.left, window.innerWidth - 340)}px`;
-  popup.style.top = `${rect.bottom + 8}px`;
-  popupSelection.textContent = text.length > 120 ? text.slice(0, 120) + "..." : text;
+  commentTrigger.style.left = `${Math.min(rect.right + 8, window.innerWidth - 100)}px`;
+  commentTrigger.style.top = `${rect.top - 4}px`;
+  commentTrigger.hidden = false;
+});
+
+// Clicking the trigger button opens the full comment popup
+commentTrigger.addEventListener("mousedown", (e) => {
+  // Prevent the mousedown from clearing the text selection
+  e.preventDefault();
+});
+
+commentTrigger.addEventListener("click", () => {
+  if (!selectionInfo) return;
+
+  // Position the popup near the trigger
+  const triggerRect = commentTrigger.getBoundingClientRect();
+  popup.style.left = `${Math.min(triggerRect.left, window.innerWidth - 340)}px`;
+  popup.style.top = `${triggerRect.bottom + 8}px`;
+  popupSelection.textContent = selectionInfo.selectedText;
   commentInput.value = "";
   popup.hidden = false;
+  commentTrigger.hidden = true;
   commentInput.focus();
 });
 
 function computeOffset(selection, text) {
-  // For plain text: use data-offset on span.line elements
-  const anchor = selection.anchorNode;
-  if (!anchor) return -1;
+  const range = selection.getRangeAt(0);
+  const startNode = range.startContainer;
+  const startCharOffset = range.startOffset;
 
-  // Walk up to find a [data-offset] element
-  let node = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : anchor;
-  while (node && !node.dataset?.offset && node !== fileContentEl) {
-    node = node.parentElement;
+  // Walk up from the range start to find a [data-offset] element
+  let lineEl = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode;
+  while (lineEl && !lineEl.dataset?.offset && lineEl !== fileContentEl) {
+    lineEl = lineEl.parentElement;
   }
 
-  if (node?.dataset?.offset !== undefined) {
-    // Plain text mode: compute from data-offset + text offset within the line
-    const lineOffset = parseInt(node.dataset.offset, 10);
-    const nodeText = node.textContent || "";
-    const idx = nodeText.indexOf(text);
-    if (idx !== -1) return lineOffset + idx;
+  if (lineEl?.dataset?.offset !== undefined) {
+    // Compute exact character offset within the line using the range start
+    const lineOffset = parseInt(lineEl.dataset.offset, 10);
+    // Walk text nodes inside this line element to find the position of startNode
+    const walker = document.createTreeWalker(lineEl, NodeFilter.SHOW_TEXT);
+    let charsBefore = 0;
+    while (walker.nextNode()) {
+      if (walker.currentNode === startNode) {
+        return lineOffset + charsBefore + startCharOffset;
+      }
+      charsBefore += walker.currentNode.textContent.length;
+    }
+    // If the start node wasn't found in this line, the selection might start
+    // at the line element boundary itself
+    return lineOffset;
   }
 
-  // Fallback: search for the text in the raw content
-  const idx = currentContent.indexOf(text);
-  return idx;
+  // Fallback: multi-strategy search for rendered text in raw source
+  // (selection.toString() strips markdown syntax like #, **, etc.)
+
+  // Strategy 1: exact match
+  const exactIdx = currentContent.indexOf(text);
+  if (exactIdx !== -1) return exactIdx;
+
+  // Strategy 2: progressive prefix matching — shorter prefixes are more likely
+  // to appear verbatim in source even when selection spans markdown elements
+  for (const len of [200, 100, 50, 30, 15]) {
+    if (text.length <= len) continue;
+    const prefix = text.slice(0, len);
+    const idx = currentContent.indexOf(prefix);
+    if (idx !== -1) return idx;
+  }
+
+  // Strategy 3: line-by-line search — find the first line of the selection in source
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (line.length < 3) continue;
+    const idx = currentContent.indexOf(line);
+    if (idx !== -1) return idx;
+  }
+
+  // Strategy 4: DOM position estimation — walk text nodes to compute the
+  // selection's DOM offset, then map proportionally to source offset and
+  // search nearby for a matching line
+  const domOffset = computeDomOffset(range.startContainer, range.startOffset);
+  if (domOffset !== -1) {
+    const fullTextLen = fileContentEl.textContent?.length || 1;
+    const ratio = domOffset / fullTextLen;
+    const estimatedSrcOffset = Math.floor(ratio * currentContent.length);
+
+    // Search for any selection line near the estimated offset
+    const searchRadius = 500;
+    const start = Math.max(0, estimatedSrcOffset - searchRadius);
+    const end = Math.min(currentContent.length, estimatedSrcOffset + searchRadius);
+    const nearby = currentContent.slice(start, end);
+
+    for (const line of lines) {
+      if (line.length < 3) continue;
+      const idx = nearby.indexOf(line);
+      if (idx !== -1) return start + idx;
+    }
+
+    // If no line matched, return the estimated offset as a best guess
+    return estimatedSrcOffset;
+  }
+
+  return -1;
+}
+
+function computeDomOffset(node, charOffset) {
+  const walker = document.createTreeWalker(fileContentEl, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  while (walker.nextNode()) {
+    if (walker.currentNode === node) {
+      return offset + charOffset;
+    }
+    offset += (walker.currentNode.textContent || "").length;
+  }
+  return -1;
+}
+
+function hideTrigger() {
+  commentTrigger.hidden = true;
+  // Only clear selectionInfo if popup isn't open
+  if (popup.hidden) {
+    selectionInfo = null;
+  }
 }
 
 function hidePopup() {
   popup.hidden = true;
+  commentTrigger.hidden = true;
   selectionInfo = null;
 }
 
@@ -202,8 +347,8 @@ function renderComments() {
       ` : ""}
       <div class="reply-form" id="reply-form-${c.id}" hidden>
         <textarea rows="2" placeholder="Reply..."></textarea>
-        <div class="popup-actions" style="margin-top:6px;">
-          <button onclick="submitReply('${c.id}')" style="font-size:11px;padding:4px 10px;border-radius:4px;border:none;background:var(--accent);color:var(--bg);cursor:pointer;">Send</button>
+        <div class="reply-form-actions">
+          <button onclick="submitReply('${c.id}')">Send</button>
         </div>
       </div>
     </div>
@@ -333,6 +478,43 @@ function timeAgo(iso) {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
 }
+
+// --- Theme Toggle ---
+
+const themeToggle = $("#themeToggle");
+const THEME_KEY = "cowrite-theme";
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  themeToggle.checked = theme === "light";
+  // Update toggle icon
+  const icon = themeToggle.closest(".theme-toggle").querySelector(".toggle-icon");
+  if (icon) icon.textContent = theme === "light" ? "\u2600" : "\u263E";
+  // Update toggle label
+  const label = document.querySelector(".toggle-label");
+  if (label) label.textContent = theme === "light" ? "Light" : "Dark";
+}
+
+// Load saved preference, default to dark
+const savedTheme = localStorage.getItem(THEME_KEY) || "dark";
+applyTheme(savedTheme);
+
+themeToggle.addEventListener("change", () => {
+  const theme = themeToggle.checked ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+});
+
+// Hide trigger when selection is cleared (e.g. clicking elsewhere)
+document.addEventListener("selectionchange", () => {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) {
+    // Small delay to avoid race with the trigger button click
+    setTimeout(() => {
+      if (popup.hidden) hideTrigger();
+    }, 100);
+  }
+});
 
 // --- Init ---
 connect();
