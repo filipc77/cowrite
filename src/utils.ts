@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import { marked } from "marked";
+import { marked, Renderer, type Tokens } from "marked";
 import type { Comment } from "./types.js";
 
 /**
@@ -31,7 +31,17 @@ export function renderToHtml(content: string, filePath: string): string {
 }
 
 function renderMarkdownWithOffsets(content: string): string {
-  const html = marked.parse(content, { async: false }) as string;
+  const renderer = new Renderer();
+  const defaultCodeRenderer = renderer.code.bind(renderer);
+
+  renderer.code = function (token: Tokens.Code) {
+    if (token.lang === "mermaid") {
+      return `<div class="mermaid-container"><pre class="mermaid">${token.text}</pre></div>`;
+    }
+    return defaultCodeRenderer(token);
+  };
+
+  const html = marked.parse(content, { async: false, renderer }) as string;
   // Wrap the rendered HTML in a container with data attributes for offset mapping
   // The client-side JS will handle offset computation from the rendered text nodes
   return `<div class="markdown-body" data-source-length="${content.length}">${html}</div>`;

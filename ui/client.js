@@ -22,6 +22,7 @@ let currentFile = "";
 let currentContent = "";
 let ws = null;
 let selectionInfo = null;
+let currentHtml = "";
 
 // --- File Picker ---
 
@@ -95,8 +96,10 @@ function connect() {
       case "file_update":
         currentFile = msg.file;
         currentContent = msg.content;
+        currentHtml = msg.html;
         filePathEl.textContent = msg.file;
         fileContentEl.innerHTML = msg.html;
+        renderMermaidDiagrams();
         applyHighlights();
         break;
       case "comments_update":
@@ -493,6 +496,13 @@ function applyTheme(theme) {
   // Update toggle label
   const label = document.querySelector(".toggle-label");
   if (label) label.textContent = theme === "light" ? "Light" : "Dark";
+  // Re-render mermaid diagrams with matching theme
+  if (window.__mermaid && currentHtml) {
+    window.__mermaid.initialize({ startOnLoad: false, theme: theme === "light" ? "default" : "dark" });
+    fileContentEl.innerHTML = currentHtml;
+    renderMermaidDiagrams();
+    applyHighlights();
+  }
 }
 
 // Load saved preference, default to dark
@@ -515,6 +525,19 @@ document.addEventListener("selectionchange", () => {
     }, 100);
   }
 });
+
+// --- Mermaid Rendering ---
+
+async function renderMermaidDiagrams() {
+  if (!window.__mermaid) return;
+  const blocks = fileContentEl.querySelectorAll("pre.mermaid");
+  if (blocks.length === 0) return;
+  try {
+    await window.__mermaid.run({ nodes: blocks });
+  } catch (err) {
+    console.error("Mermaid rendering failed:", err);
+  }
+}
 
 // --- Init ---
 connect();
