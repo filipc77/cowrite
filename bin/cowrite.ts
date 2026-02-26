@@ -208,7 +208,10 @@ async function main() {
 
   const command = positionals[0];
 
-  updateNotifier({ pkg: { name: "@filipc77/cowrite", version } }).notify({ isGlobal: true });
+  updateNotifier({
+    pkg: { name: "@filipc77/cowrite", version },
+    updateCheckInterval: 1000 * 60 * 60, // 1 hour (default is 1 day)
+  }).notify({ isGlobal: true, defer: false });
 
   const projectDir = process.cwd();
   const port = parseInt(values.port as string, 10);
