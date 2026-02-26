@@ -38,9 +38,17 @@ A single Node.js process runs both the HTTP/WebSocket preview server and the MCP
 npm install -g @filipc77/cowrite
 ```
 
-This gives you the `cowrite` command globally.
+This gives you the `cowrite` command globally (needed for `cowrite open`). Optional if you only use `npx`.
 
 ### 2. Add Cowrite as an MCP server in Claude Code
+
+**For this project only** (recommended):
+
+```bash
+claude mcp add cowrite -- npx -y @filipc77/cowrite@latest serve
+```
+
+**For all projects** (user-level):
 
 ```bash
 claude mcp add -s user cowrite -- npx -y @filipc77/cowrite@latest serve
