@@ -11,3 +11,4 @@ dist/
 !.claude/hooks/**
 !.claude/settings.json
 CLAUDE.md
+.agents/
