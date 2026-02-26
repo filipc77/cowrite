@@ -42,7 +42,9 @@ claude mcp add -s user cowrite -- npx -y @filipc77/cowrite serve
 
 ### 2. Open the preview
 
-When Cowrite starts, it runs an HTTP server at `http://localhost:3377`. Open it in your browser, pick a file, and you'll see a live preview.
+Ask the agent "what's the cowrite preview URL?" — it will call the `get_preview_url` tool and give you the link. The default port is `3377`, but if it's in use (e.g. running cowrite in multiple repos), it automatically picks the next available port.
+
+Open the URL in your browser, pick a file, and you'll see a live preview.
 
 ### 3. Select text and comment
 
@@ -84,6 +86,10 @@ Options:
 ```
 
 ## MCP Tools
+
+### `get_preview_url`
+
+Returns the URL of the live preview server. Ask the agent for this to know which port to open.
 
 ### `get_pending_comments`
 

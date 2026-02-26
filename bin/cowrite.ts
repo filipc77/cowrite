@@ -188,8 +188,10 @@ async function main() {
 
     // Start preview server (non-fatal — MCP works even if port is taken)
     const preview = createPreviewServer(store, projectDir, port);
+    let previewRunning = false;
     try {
       await preview.start();
+      previewRunning = true;
       process.stderr.write(`Preview: http://localhost:${preview.port}\n`);
     } catch (err) {
       process.stderr.write(`Preview server failed: ${err}\n`);
@@ -197,7 +199,7 @@ async function main() {
     }
 
     // Start MCP server on stdio
-    const mcpServer = createMcpServer(store, projectDir);
+    const mcpServer = createMcpServer(store, projectDir, () => previewRunning ? preview.port : null);
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
 
@@ -220,8 +222,10 @@ async function main() {
 
     // Start preview server (non-fatal — MCP works even if port is taken)
     const preview = createPreviewServer(store, projectDir, port, resolvedFile);
+    let previewRunning2 = false;
     try {
       await preview.start();
+      previewRunning2 = true;
       process.stderr.write(`Preview: http://localhost:${preview.port}\n`);
     } catch (err) {
       process.stderr.write(`Preview server failed: ${err}\n`);
@@ -229,7 +233,7 @@ async function main() {
     }
 
     // Start MCP server on stdio
-    const mcpServer = createMcpServer(store, projectDir);
+    const mcpServer = createMcpServer(store, projectDir, () => previewRunning2 ? preview.port : null);
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
 

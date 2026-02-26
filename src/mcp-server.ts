@@ -5,7 +5,7 @@ import { annotateFileWithComments } from "./utils.js";
 import { readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
-export function createMcpServer(store: CommentStore, projectDir: string): McpServer {
+export function createMcpServer(store: CommentStore, projectDir: string, getPreviewPort?: () => number | null): McpServer {
   const server = new McpServer(
     { name: "cowrite", version: "0.1.0" },
     { capabilities: { logging: {} } },
@@ -171,6 +171,25 @@ export function createMcpServer(store: CommentStore, projectDir: string): McpSer
           onAbort();
         }
       });
+    }
+  );
+
+  // Tool: get_preview_url
+  server.tool(
+    "get_preview_url",
+    "Get the URL of the Cowrite live preview. Share this with the user so they can open it in their browser.",
+    {},
+    async () => {
+      const port = getPreviewPort?.();
+      if (!port) {
+        return {
+          content: [{ type: "text" as const, text: "Preview server is not running." }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: `http://localhost:${port}` }],
+      };
     }
   );
 
