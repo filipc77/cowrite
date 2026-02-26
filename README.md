@@ -1,10 +1,10 @@
 # Cowrite
 
-Live commenting plugin for coding agent sessions. Select text in a browser preview, leave comments, and your coding agent receives them in real time via MCP. Works with any MCP-compatible coding agent — optimized for Claude Code with auto-installed hooks and skills.
+Live commenting and inline editing plugin for coding agent sessions. Select text to comment, click to edit — your coding agent receives all changes in real time via MCP.
 
 **The problem:** When working with AI coding agents, there's no way to give inline, contextual feedback on specific parts of a file while the agent is working. You either interrupt with a chat message (losing spatial context) or wait until the agent is done.
 
-**The solution:** Cowrite opens a live preview of any text file where you can select text and leave comments. The comments propagate directly into the agent session via MCP tools — so the agent can act on your feedback immediately. Any agent that supports MCP can use Cowrite's tools (`get_pending_comments`, `resolve_comment`, etc.). Claude Code users get additional integration: auto-installed hooks that surface comments on every prompt, and `/review` + `/watch` skills.
+The solution: Cowrite opens a live preview of any text file where you can select text and leave comments. The comments propagate directly into the agent ssss — so the agent can act on your feedback immediately. Any agent that supports MCP can use Cowrite's tools (get_pending_comments, resolve_comment, etc.). Claude Code users get additional integration: auto-installed hooks that surface comments on every prompt, and /review + /watch skills. The preview also supports inline editing: click any block to edit it, insert new blocks with the + button, and undo with Cmd+Z — all changes are saved to disk instantly.
 
 ## How it works
 
@@ -28,7 +28,7 @@ Browser (Preview UI)          Node.js Process              Claude Code
                          └──────────────────────┘
 ```
 
-A single Node.js process runs both the HTTP/WebSocket preview server and the MCP stdio server, sharing one in-memory comment store.
+A single Node.js process runs both the HTTP/WebSocket preview server and the MCP stdio server, sharing one in-memory comment store. Inline edits from the browser are applied to the file on disk via WebSocket, and the file watcher propagates changes back to all connected clients.
 
 ## Quick Start
 
@@ -67,9 +67,11 @@ cowrite open
 
 Pick a file and you'll see a live preview.
 
-### 4. Select text and comment
+### 4. Comment or edit
 
-Select any text in the preview. A **Comment** button appears — click it to open the comment form. Your text selection stays intact, so you can still copy-paste normally.
+**Commenting:** Select any text in the preview. A **Comment** button appears — click it to open the comment form. Your text selection stays intact, so you can still copy-paste normally.
+
+**Editing:** Click any block in the preview to edit it inline (contentEditable for text, textarea for code blocks and tables). Press the **+** button between blocks to insert a new block from a searchable menu. Press **Cmd+Enter** to save your edit, **Escape** to cancel, or **Cmd+Z** to undo (up to 50 levels).
 
 ### 5. The agent picks up your comments
 
@@ -168,6 +170,9 @@ Blocks until a new comment is posted in the live preview, then returns it. If pe
 - **Agent replies** — The agent can reply to comments, and replies appear in the browser sidebar in real time.
 - **Auto-port selection** — If port 3377 is in use (e.g. running cowrite in multiple repos), it automatically tries the next port (3378, 3379, etc.).
 - **Auto-installed hooks** — `cowrite serve` automatically installs Claude Code `UserPromptSubmit` and `Stop` hooks that surface pending comments to the agent. Merges with existing settings.
+- **Inline editing** — click any block to edit directly (contentEditable for text, textarea for code/tables)
+- **Block insertion** — + button between blocks, searchable menu
+- **Undo** — Cmd+Z or header button, up to 50 levels, persisted across file switches
 
 ## Skills
 
@@ -189,6 +194,14 @@ Cowrite ships with two built-in Claude Code skills (auto-installed to `.claude/s
    - The agent calling `get_pending_comments` directly
 6. The agent makes the change, calls `reply_to_comment` (visible in the browser), then `resolve_comment`
 7. The browser receives the update via WebSocket and shows the reply and resolved state
+
+## How Edits Flow
+
+1. You click a block in the browser preview to enter edit mode
+2. After editing, press Cmd+Enter to save — the browser sends an `edit_apply` message via WebSocket
+3. The server writes the updated content to the file on disk
+4. The file watcher detects the change and broadcasts the new content to all connected clients
+5. Comments re-anchor to their selected text in the updated file
 
 ## Development
 

@@ -185,6 +185,32 @@ header h1 {
   letter-spacing: 0.2px;
 }
 
+/* ---- Undo button ---- */
+.undo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.undo-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.undo-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 /* Status badge */
 .status {
   display: flex;
@@ -302,6 +328,7 @@ main {
 }
 
 #fileContent {
+  position: relative;
   max-width: 860px;
   margin: 0 auto;
   font-size: 16px;
@@ -315,159 +342,69 @@ main {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- Markdown styles (GitHub-like) ---- */
+/* ---- Markdown body theme overrides (on top of github-markdown-css) ---- */
 .markdown-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  word-wrap: break-word;
+  color-scheme: dark;
+  background: transparent !important;
 }
-
+[data-theme="light"] .markdown-body {
+  color-scheme: light;
+}
+.markdown-body a { color: var(--accent); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body pre code.hljs { background: none; padding: 0; }
 .markdown-body > *:first-child { margin-top: 0; }
 .markdown-body > *:last-child { margin-bottom: 0; }
 
-.markdown-body h1, .markdown-body h2, .markdown-body h3,
-.markdown-body h4, .markdown-body h5, .markdown-body h6 {
-  margin-top: 24px;
-  margin-bottom: 16px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.25;
-}
-
-.markdown-body h1 {
-  font-size: 2em;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.3em;
-}
-
-.markdown-body h2 {
-  font-size: 1.5em;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.3em;
-}
-
-.markdown-body h3 { font-size: 1.25em; }
-.markdown-body h4 { font-size: 1em; }
-.markdown-body h5 { font-size: 0.875em; }
-.markdown-body h6 { font-size: 0.85em; color: var(--text-dim); }
-
-.markdown-body p {
+/* ---- Code block wrapper ---- */
+.code-block-wrapper {
+  position: relative;
   margin-top: 0;
   margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
-.markdown-body ul, .markdown-body ol {
-  margin-top: 0;
-  margin-bottom: 16px;
-  padding-left: 2em;
-}
-
-.markdown-body li {
-  margin-top: 0.25em;
-}
-
-.markdown-body li + li {
-  margin-top: 0.25em;
-}
-
-.markdown-body code {
-  font-family: var(--font-mono);
-  font-size: 85%;
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
   background: var(--surface-hover);
-  padding: 0.2em 0.4em;
-  border-radius: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
 }
 
-.markdown-body pre {
-  background: var(--surface);
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin-top: 0;
-  margin-bottom: 16px;
-  font-size: 85%;
-  line-height: 1.45;
-  border: 1px solid var(--border);
-}
-
-.markdown-body pre code {
-  background: none;
-  padding: 0;
-  border-radius: 0;
-  font-size: 100%;
-  word-break: normal;
-  white-space: pre;
-}
-
-.markdown-body blockquote {
-  border-left: 0.25em solid var(--border);
-  padding: 0 1em;
+.code-block-lang {
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-dim);
-  margin-top: 0;
-  margin-bottom: 16px;
+  text-transform: lowercase;
 }
 
-.markdown-body blockquote > :first-child { margin-top: 0; }
-.markdown-body blockquote > :last-child { margin-bottom: 0; }
-
-.markdown-body a { color: var(--accent); text-decoration: none; }
-.markdown-body a:hover { text-decoration: underline; }
-
-.markdown-body img {
-  max-width: 100%;
-  border-radius: 6px;
-}
-
-.markdown-body hr {
-  height: 0.25em;
-  padding: 0;
-  margin: 24px 0;
-  background: var(--border);
-  border: 0;
-  border-radius: 2px;
-}
-
-.markdown-body table {
-  border-collapse: collapse;
-  border-spacing: 0;
-  margin-top: 0;
-  margin-bottom: 16px;
-  width: auto;
-  display: block;
-  overflow-x: auto;
-}
-
-.markdown-body th, .markdown-body td {
+.code-copy-btn {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 4px;
   border: 1px solid var(--border);
-  padding: 6px 13px;
-  text-align: left;
-}
-
-.markdown-body th {
-  font-weight: 600;
   background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.markdown-body tr:nth-child(2n) {
-  background: var(--bg-subtle);
+.code-copy-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
-.markdown-body dl {
-  padding: 0;
-  margin-bottom: 16px;
-}
-
-.markdown-body dl dt {
-  font-weight: 600;
-  margin-top: 16px;
-  padding: 0;
-  font-size: 1em;
-}
-
-.markdown-body dl dd {
-  padding: 0 16px;
-  margin-bottom: 16px;
+.code-block-wrapper pre {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
 /* Plain text */
@@ -488,11 +425,6 @@ main {
   position: relative;
   transition: background 0.2s ease;
   border-radius: 2px;
-}
-
-.comment-highlight.resolved {
-  background: transparent;
-  border-bottom-color: transparent;
 }
 
 .comment-highlight:hover {
@@ -553,6 +485,7 @@ main {
 
 /* ---- Comment card ---- */
 .comment-card {
+  position: relative;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -561,6 +494,30 @@ main {
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.4s ease, transform 0.2s ease;
   animation: card-enter 0.25s ease both;
+}
+
+.comment-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.comment-card:hover .comment-delete-btn {
+  opacity: 1;
+}
+
+.comment-delete-btn:hover {
+  color: var(--red, #d4616e);
+  background: rgba(212, 97, 110, 0.1);
 }
 
 .comment-card:hover {
@@ -762,31 +719,40 @@ main {
   transform: scale(0.97);
 }
 
-/* ---- Comment trigger button ---- */
-.comment-trigger {
+/* ---- Selection toolbar ---- */
+.selection-toolbar {
   position: fixed;
   z-index: 999;
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  animation: popup-enter 0.15s ease;
+}
+
+.selection-toolbar[hidden] { display: none; }
+.comment-popup[hidden] { display: none; }
+
+.selection-toolbar button {
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 600;
   padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: none;
   background: var(--surface);
   color: var(--accent);
   cursor: pointer;
-  box-shadow: var(--shadow-md);
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-  animation: popup-enter 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.comment-trigger:hover {
+.selection-toolbar button:hover {
   background: var(--accent);
   color: var(--bg);
-  border-color: var(--accent);
 }
 
-.comment-trigger:active {
+.selection-toolbar button:active {
   transform: scale(0.96);
 }
 
@@ -822,6 +788,12 @@ main {
   letter-spacing: 0.8px;
   color: var(--text-faint);
   margin-bottom: 6px;
+  cursor: grab;
+  user-select: none;
+}
+
+.popup-header:active {
+  cursor: grabbing;
 }
 
 .popup-selection {
@@ -950,3 +922,249 @@ main {
   max-width: 100%;
   height: auto;
 }
+
+/* ---- Highlight popover ---- */
+.highlight-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  animation: popup-enter 0.15s ease;
+}
+
+.highlight-popover[hidden] { display: none; }
+
+.highlight-popover-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.highlight-popover-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.highlight-popover-actions button {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.highlight-popover-actions button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+/* ---- Block gutter insert button ---- */
+.block-insert-btn {
+  position: absolute;
+  left: -40px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.block-insert-btn.visible {
+  opacity: 1;
+}
+
+.block-insert-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- Block gap indicator line ---- */
+.block-insert-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.block-insert-line.visible {
+  opacity: 0.4;
+}
+
+/* ---- Block type menu ---- */
+.block-type-menu {
+  width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  margin: 8px 0;
+  overflow: hidden;
+  animation: popup-enter 0.2s ease;
+}
+
+.block-type-filter {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  outline: none;
+  transition: background 0.4s ease;
+}
+
+.block-type-filter::placeholder {
+  color: var(--text-faint);
+}
+
+.block-type-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.block-type-category {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-faint);
+  padding: 8px 14px 4px;
+}
+
+.block-type-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.1s ease;
+}
+
+.block-type-item:hover,
+.block-type-item.highlighted {
+  background: var(--surface-hover);
+}
+
+.block-type-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  background: var(--bg);
+}
+
+.block-type-empty {
+  padding: 16px 14px;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ---- Block hover affordance (click-to-edit) ---- */
+.markdown-body > *:not(.block-edit-wrapper):not(.block-type-menu):not(.block-insert-btn):not(.block-insert-line):not(.block-editing) {
+  cursor: text;
+  transition: outline-color 0.15s ease;
+  outline: 1px solid transparent;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.markdown-body > *:not(.block-edit-wrapper):not(.block-type-menu):not(.block-insert-btn):not(.block-insert-line):not(.block-editing):hover {
+  outline-color: var(--border-hover);
+}
+
+.plain-text > *:not(.block-edit-wrapper):not(.block-type-menu):not(.block-insert-btn):not(.block-insert-line):not(.block-editing) {
+  cursor: text;
+  transition: outline-color 0.15s ease;
+  outline: 1px solid transparent;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.plain-text > *:not(.block-edit-wrapper):not(.block-type-menu):not(.block-insert-btn):not(.block-insert-line):not(.block-editing):hover {
+  outline-color: var(--border-hover);
+}
+
+/* ---- Contenteditable inline editing ---- */
+.block-editing {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 6px var(--accent-glow);
+}
+
+/* ---- Block edit wrapper (in-place editing) ---- */
+.block-edit-wrapper {
+  margin: 4px 0;
+}
+
+.block-edit-textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  white-space: pre;
+  tab-size: 2;
+  resize: none;
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-glow);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.4s ease;
+}
+
+.block-edit-hint {
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 4px;
+  padding-right: 2px;
+}
+
+
+
+

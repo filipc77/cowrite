@@ -118,6 +118,15 @@ export class CommentStore extends EventEmitter {
     return comment;
   }
 
+  delete(commentId: string): boolean {
+    const existed = this.comments.delete(commentId);
+    if (existed) {
+      this.emit("change", null);
+      this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
+    }
+    return existed;
+  }
+
   addReply(commentId: string, from: "user" | "agent", text: string): Reply | null {
     const comment = this.comments.get(commentId);
     if (!comment) return null;

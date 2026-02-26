@@ -23,7 +23,9 @@ export type WSClientMessage =
   | { type: "comment_add"; file: string; offset: number; length: number; selectedText: string; comment: string }
   | { type: "comment_reply"; commentId: string; text: string }
   | { type: "comment_resolve"; commentId: string }
-  | { type: "switch_file"; file: string };
+  | { type: "comment_delete"; commentId: string }
+  | { type: "switch_file"; file: string }
+  | { type: "edit_apply"; offset: number; length: number; newText: string };
 
 // WebSocket messages: Server → Browser
 export type WSServerMessage =
