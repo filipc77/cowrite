@@ -1,6 +1,6 @@
 {
   "name": "@filipc77/cowrite",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Live commenting and inline editing plugin for coding agent sessions",
   "type": "module",
   "bin": {
