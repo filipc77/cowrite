@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CommentStore } from "../src/comment-store.js";
 import { createMcpServer } from "../src/mcp-server.js";
 import { createPreviewServer } from "../src/preview-server.js";
+import { openBrowser } from "../src/utils.js";
 
 const USAGE = `
 cowrite — Live commenting plugin for coding agent sessions
@@ -12,9 +13,11 @@ cowrite — Live commenting plugin for coding agent sessions
 Usage:
   cowrite preview <file> [--port N]   Open browser preview for a specific file + start MCP server
   cowrite serve [--port N]             Start MCP server + preview server (browse any file)
+  cowrite open [--port N]              Open the browser to the preview URL
 
 Options:
   --port, -p    Port for preview server (default: 3377)
+  --no-open     Don't auto-open the browser
   --help, -h    Show this help
 `;
 
@@ -163,6 +166,7 @@ async function main() {
     args: process.argv.slice(2),
     options: {
       port: { type: "string", short: "p", default: "3377" },
+      "no-open": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -192,7 +196,9 @@ async function main() {
     try {
       await preview.start();
       previewRunning = true;
-      process.stderr.write(`Preview: http://localhost:${preview.port}\n`);
+      const previewUrl = `http://localhost:${preview.port}`;
+      process.stderr.write(`Preview: ${previewUrl}\n`);
+      if (!values["no-open"]) openBrowser(previewUrl);
     } catch (err) {
       process.stderr.write(`Preview server failed: ${err}\n`);
       process.stderr.write(`MCP server will still run — comments sync via .cowrite-comments.json\n`);
@@ -226,7 +232,9 @@ async function main() {
     try {
       await preview.start();
       previewRunning2 = true;
-      process.stderr.write(`Preview: http://localhost:${preview.port}\n`);
+      const previewUrl = `http://localhost:${preview.port}`;
+      process.stderr.write(`Preview: ${previewUrl}\n`);
+      if (!values["no-open"]) openBrowser(previewUrl);
     } catch (err) {
       process.stderr.write(`Preview server failed: ${err}\n`);
       process.stderr.write(`MCP server will still run — comments sync via .cowrite-comments.json\n`);
@@ -240,6 +248,10 @@ async function main() {
     process.stderr.write(`Cowrite MCP server running on stdio\n`);
 
     setupShutdown(store, preview);
+  } else if (command === "open") {
+    const url = `http://localhost:${port}`;
+    process.stderr.write(`Opening ${url}\n`);
+    openBrowser(url);
   } else {
     process.stderr.write(`Unknown command: ${command}\n`);
     process.stderr.write(USAGE);

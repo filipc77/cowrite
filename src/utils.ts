@@ -1,5 +1,18 @@
+import { exec } from "node:child_process";
 import { marked } from "marked";
 import type { Comment } from "./types.js";
+
+/**
+ * Open a URL in the user's default browser (fire-and-forget).
+ */
+export function openBrowser(url: string): void {
+  const cmd = process.platform === "darwin" ? `open "${url}"`
+    : process.platform === "win32" ? `cmd /c start "" "${url}"`
+    : `xdg-open "${url}"`;
+  exec(cmd, (err) => {
+    if (err) process.stderr.write(`Could not open browser: ${err.message}\n`);
+  });
+}
 
 /**
  * Render file content as HTML. Markdown files get full rendering;

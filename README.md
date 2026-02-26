@@ -42,9 +42,9 @@ claude mcp add -s user cowrite -- npx -y @filipc77/cowrite serve
 
 ### 2. Open the preview
 
-Ask the agent "what's the cowrite preview URL?" — it will call the `get_preview_url` tool and give you the link. The default port is `3377`, but if it's in use (e.g. running cowrite in multiple repos), it automatically picks the next available port.
+The browser opens automatically when the MCP server starts. The default port is `3377`, but if it's in use (e.g. running cowrite in multiple repos), it automatically picks the next available port. Use `--no-open` to disable auto-opening.
 
-Open the URL in your browser, pick a file, and you'll see a live preview.
+Pick a file and you'll see a live preview.
 
 ### 3. Select text and comment
 
@@ -79,9 +79,11 @@ On first run, `cowrite serve` installs into your project's `.claude/` directory:
 ```
 cowrite preview <file> [--port N]   Open browser preview for a specific file + start MCP server
 cowrite serve [--port N]             Start MCP server + preview server (browse any file)
+cowrite open [--port N]              Open the browser to the preview URL
 
 Options:
   --port, -p    Port for preview server (default: 3377)
+  --no-open     Don't auto-open the browser
   --help, -h    Show help
 ```
 
