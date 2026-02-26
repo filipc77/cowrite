@@ -20,6 +20,7 @@ const highlightEditBtn = $("#highlightEditBtn");
 const undoBtn = $("#undoBtn");
 const filePicker = $("#filePicker");
 const fileList = $("#fileList");
+const fileCommentBtn = $("#fileCommentBtn");
 
 /** @type {Comment[]} */
 let comments = [];
@@ -337,6 +338,10 @@ function hideTrigger() {
 function hidePopup() {
   popup.hidden = true;
   selectionInfo = null;
+  // Reset popup to default state for next use
+  popupSelection.hidden = false;
+  popup.querySelector(".popup-header").textContent = "Selection";
+  commentInput.placeholder = "Leave a comment...";
 }
 
 $("#commentCancel").addEventListener("click", hidePopup);
@@ -350,6 +355,24 @@ commentInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     hidePopup();
   }
+});
+
+fileCommentBtn.addEventListener("click", () => {
+  if (!currentFile) return;
+
+  // Position popup below the button
+  const btnRect = fileCommentBtn.getBoundingClientRect();
+  popup.style.left = `${Math.max(8, btnRect.left - 280)}px`;
+  popup.style.top = `${btnRect.bottom + 8}px`;
+
+  // Hide the selection preview, set file-comment mode
+  popupSelection.hidden = true;
+  popup.querySelector(".popup-header").textContent = "File comment";
+  commentInput.value = "";
+  commentInput.placeholder = "Comment on the whole file...";
+  selectionInfo = { offset: 0, length: 0, selectedText: "" };
+  popup.hidden = false;
+  commentInput.focus();
 });
 
 function submitComment() {
@@ -376,7 +399,7 @@ function renderComments() {
     commentListEl.innerHTML = `
       <div class="empty-state">
         <p>No comments yet.</p>
-        <p>Select text in the preview and add a comment.</p>
+        <p>Select text to comment, or use + for file comments.</p>
       </div>
     `;
     return;
@@ -387,7 +410,10 @@ function renderComments() {
       <button class="comment-delete-btn" onclick="deleteComment('${c.id}')" title="Delete comment">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
       </button>
-      <div class="comment-selected-text">${escapeHtml(c.selectedText)}</div>
+      ${c.selectedText
+        ? `<div class="comment-selected-text">${escapeHtml(c.selectedText)}</div>`
+        : `<div class="comment-file-badge">Whole file</div>`
+      }
       <div class="comment-text">${escapeHtml(c.comment)}</div>
       ${c.replies.length > 0 ? `
         <div class="comment-replies">
@@ -403,12 +429,16 @@ function renderComments() {
         <span>${timeAgo(c.createdAt)}</span>
         <span class="comment-status ${c.status}">${c.status}</span>
       </div>
-      ${c.status === "pending" ? `
+      ${c.status !== "resolved" ? `
         <div class="comment-actions">
           <button onclick="showReplyForm('${c.id}')">Reply</button>
           <button onclick="resolveComment('${c.id}')">Resolve</button>
         </div>
-      ` : ""}
+      ` : `
+        <div class="comment-actions">
+          <button onclick="reopenComment('${c.id}')">Reopen</button>
+        </div>
+      `}
       <div class="reply-form" id="reply-form-${c.id}" hidden>
         <textarea rows="2" placeholder="Reply..."></textarea>
         <div class="reply-form-actions">
@@ -444,6 +474,10 @@ window.showReplyForm = function (id) {
 
 window.resolveComment = function (id) {
   send({ type: "comment_resolve", commentId: id });
+};
+
+window.reopenComment = function (id) {
+  send({ type: "comment_reopen", commentId: id });
 };
 
 window.deleteComment = function (id) {
@@ -486,9 +520,10 @@ function applyHighlights() {
 
   const fullText = textNodes.map((n) => n.node.textContent).join("");
 
-  // Only highlight pending comments — resolved ones act as regular text
+  // Highlight pending and answered comments — resolved ones act as regular text
   for (const comment of comments) {
-    if (comment.status !== "pending") continue;
+    // Render highlights for all statuses (resolved ones are invisible via CSS but present for click-to-scroll)
+    if (!comment.selectedText) continue;
     const searchText = comment.selectedText;
     // Search near the expected offset first, then globally
     let textIdx = fullText.indexOf(searchText, Math.max(0, comment.offset - 50));

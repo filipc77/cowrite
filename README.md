@@ -10,19 +10,19 @@ The solution: Cowrite opens a live preview of any text file where you can select
 
 ```
 Browser (Preview UI)          Node.js Process              Claude Code
-┌─────────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│ File preview     │     │  HTTP + WebSocket    │     │              │
-│ Text selection   │◄───►│  server (port 3377)  │     │  MCP tools:  │
-│ Comment creation │     │                      │     │              │
-│ Comment sidebar  │     │  ┌────────────────┐  │     │  get_pending │
-└─────────────────┘     │  │ CommentStore   │  │     │  resolve     │
-                         │  │ (shared memory)│  │     │  reply       │
-                         │  └───────┬────────┘  │     │  get_annotated│
-                         │          │           │     │  wait_for_comment│
-                         │  ┌───────▼────────┐  │     │              │
-                         │  │ MCP Server     │◄─╋────►│              │
-                         │  │ (stdio)        │  │     │              │
-                         │  └────────────────┘  │     └──────────────┘
+┌──────────────────┐     ┌──────────────────────┐     ┌────────────────────┐
+│ File preview     │     │  HTTP + WebSocket    │     │                    │
+│ Text selection   │◄───►│  server (port 3377)  │     │  MCP tools:        │
+│ Comment creation │     │                      │     │                    │
+│ Comment sidebar  │     │  ┌────────────────┐  │     │  get_pending       │ 
+└──────────────────┘     │  │ CommentStore   │  │     │  resolve           │
+                         │  │ (shared memory)│  │     │  reply             │
+                         │  └───────┬────────┘  │     │  get_annotated     │
+                         │          │           │     │   wait_for_comment │
+                         │  ┌───────▼────────┐  │     │                    │
+                         │  │ MCP Server     │◄─╋────►│                    │
+                         │  │ (stdio)        │  │     │                    │
+                         │  └────────────────┘  │     └────────────────────┘
                          │                      │
                          │  File Watcher        │
                          └──────────────────────┘

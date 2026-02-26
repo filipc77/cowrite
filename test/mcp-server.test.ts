@@ -28,9 +28,9 @@ describe("MCP Server", () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
     expect(names).toContain("get_pending_comments");
-    expect(names).toContain("resolve_comment");
     expect(names).toContain("reply_to_comment");
     expect(names).toContain("get_file_with_annotations");
+    expect(names).not.toContain("resolve_comment");
   });
 
   it("should get pending comments (empty)", async () => {
@@ -58,33 +58,7 @@ describe("MCP Server", () => {
     expect(comments[0].comment).toBe("Fix this typo");
   });
 
-  it("should resolve a comment", async () => {
-    const comment = store.add({
-      file: join(tempDir, "test.md"),
-      offset: 0,
-      length: 5,
-      selectedText: "hello",
-      comment: "test",
-    });
-
-    const result = await client.callTool({
-      name: "resolve_comment",
-      arguments: { commentId: comment.id },
-    });
-    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
-    expect(text).toContain("resolved");
-    expect(store.get(comment.id)?.status).toBe("resolved");
-  });
-
-  it("should return error for unknown comment", async () => {
-    const result = await client.callTool({
-      name: "resolve_comment",
-      arguments: { commentId: "nonexistent" },
-    });
-    expect(result.isError).toBe(true);
-  });
-
-  it("should reply to a comment", async () => {
+  it("should reply to a comment and auto-transition to answered", async () => {
     const comment = store.add({
       file: join(tempDir, "test.md"),
       offset: 0,
@@ -100,6 +74,26 @@ describe("MCP Server", () => {
 
     expect(store.get(comment.id)?.replies).toHaveLength(1);
     expect(store.get(comment.id)?.replies[0].from).toBe("agent");
+    expect(store.get(comment.id)?.status).toBe("answered");
+  });
+
+  it("should exclude answered comments from default get_pending_comments", async () => {
+    const comment = store.add({
+      file: join(tempDir, "test.md"),
+      offset: 0,
+      length: 5,
+      selectedText: "hello",
+      comment: "test",
+    });
+
+    store.addReply(comment.id, "agent", "Done!");
+
+    const result = await client.callTool({
+      name: "get_pending_comments",
+      arguments: {},
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toBe("No comments found.");
   });
 
   it("should get file with annotations", async () => {

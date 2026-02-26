@@ -431,8 +431,26 @@ main {
   background: rgba(212, 165, 84, 0.18);
 }
 
+.comment-highlight.answered {
+  background: var(--blue-bg);
+  border-bottom: 2px solid var(--blue);
+}
+
+.comment-highlight.answered:hover {
+  background: rgba(107, 163, 212, 0.18);
+}
+
+.comment-highlight.resolved {
+  background: transparent;
+  border-bottom: none;
+}
+
 [data-theme="light"] .comment-highlight:hover {
   background: rgba(176, 125, 46, 0.12);
+}
+
+[data-theme="light"] .comment-highlight.answered:hover {
+  background: rgba(58, 114, 160, 0.12);
 }
 
 /* ---- Sidebar ---- */
@@ -448,9 +466,43 @@ main {
 }
 
 .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.file-comment-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.file-comment-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.comment-file-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
 }
 
 .sidebar-header h2 {
@@ -531,8 +583,21 @@ main {
   box-shadow: 0 0 0 2px var(--accent-glow), var(--shadow-glow);
 }
 
+.comment-card.answered {
+  border-left: 3px solid var(--blue);
+}
+
+.comment-card.answered .comment-selected-text {
+  border-left-color: var(--blue);
+}
+
+.comment-card.resolved .comment-selected-text {
+  border-left-color: var(--green);
+}
+
 .comment-card.resolved {
   opacity: 0.5;
+  border-left: 3px solid var(--green);
 }
 
 .comment-card.resolved:hover {
@@ -601,6 +666,11 @@ main {
 .comment-status.pending {
   color: var(--yellow);
   background: var(--yellow-bg);
+}
+
+.comment-status.answered {
+  color: var(--blue);
+  background: var(--blue-bg);
 }
 
 .comment-status.resolved {

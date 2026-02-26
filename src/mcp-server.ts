@@ -17,10 +17,10 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
     "Get comments from the live preview (0 pending). Call this first to catch comments posted before you started listening.",
     {
       file: z.string().optional().describe("Filter by file path"),
-      status: z.enum(["pending", "resolved", "all"]).optional().describe("Filter by status (default: pending)"),
+      status: z.enum(["pending", "answered", "resolved", "all"]).optional().describe("Filter by status (default: pending)"),
     },
     async ({ file, status }) => {
-      const filter: { file?: string; status?: "pending" | "resolved" | "all" } = {};
+      const filter: { file?: string; status?: "pending" | "answered" | "resolved" | "all" } = {};
       if (file) filter.file = resolve(projectDir, file);
       filter.status = status ?? "pending";
       const comments = store.getAll(filter);
@@ -37,31 +37,10 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
     }
   );
 
-  // Tool: resolve_comment
-  server.tool(
-    "resolve_comment",
-    "Mark a comment as resolved/addressed.",
-    {
-      commentId: z.string().describe("The comment ID to resolve"),
-    },
-    async ({ commentId }) => {
-      const comment = store.resolve(commentId);
-      if (!comment) {
-        return {
-          content: [{ type: "text" as const, text: `Comment ${commentId} not found.` }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: "text" as const, text: `Comment ${commentId} resolved.` }],
-      };
-    }
-  );
-
   // Tool: reply_to_comment
   server.tool(
     "reply_to_comment",
-    "Reply to a comment from the agent.",
+    "Reply to a comment from the agent. Your reply automatically marks the comment as 'answered'. The user reviews it and can resolve or reply back.",
     {
       commentId: z.string().describe("The comment ID to reply to"),
       reply: z.string().describe("The reply text"),
@@ -160,10 +139,12 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
         const cleanup = () => {
           clearTimeout(timer);
           store.off("new_comment", onComment);
+          store.off("comment_reopened", onComment);
           signal?.removeEventListener("abort", onAbort);
         };
 
         store.on("new_comment", onComment);
+        store.on("comment_reopened", onComment);
         signal?.addEventListener("abort", onAbort, { once: true });
 
         // If already aborted before we set up
@@ -226,7 +207,7 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
   // 1. Update tool description with pending count + sendToolListChanged
   // 2. sendLoggingMessage as additional context
   // Primary real-time mechanism is wait_for_comment via the /watch skill.
-  store.on("new_comment", (comment: { file: string; selectedText: string; comment: string }) => {
+  function notifyCommentNeedsAttention(comment: { file: string; selectedText: string; comment: string }, prefix: string) {
     if (!server.isConnected()) return;
 
     const count = store.getAll({ status: "pending" }).length;
@@ -246,15 +227,26 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
     }
 
     // Signal 2: Logging message
+    const logMsg = comment.selectedText
+      ? `${prefix} on ${file}: "${comment.comment}" (selected: "${selectedPreview}"). Call get_pending_comments to see it.`
+      : `${prefix} on ${file}: "${comment.comment}". Call get_pending_comments to see it.`;
     server.sendLoggingMessage({
       level: "warning",
-      data: `NEW COMMENT on ${file}: "${comment.comment}" (selected: "${selectedPreview}"). Call get_pending_comments to see it.`,
+      data: logMsg,
     }).catch(() => {});
 
     // Signal 3: Resource list changed
     server.server.notification({
       method: "notifications/resources/list_changed",
     }).catch(() => {});
+  }
+
+  store.on("new_comment", (comment: { file: string; selectedText: string; comment: string }) => {
+    notifyCommentNeedsAttention(comment, "NEW COMMENT");
+  });
+
+  store.on("comment_reopened", (comment: { file: string; selectedText: string; comment: string }) => {
+    notifyCommentNeedsAttention(comment, "COMMENT REOPENED");
   });
 
   // Update description count when comments are resolved
@@ -272,7 +264,7 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
   // Prompt: cowrite-workflow
   server.prompt(
     "cowrite-workflow",
-    "How to process live preview comments in a wait-handle-resolve loop",
+    "How to process live preview comments in a wait-handle-reply loop",
     () => ({
       messages: [
         {
@@ -282,17 +274,21 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
             text: [
               "You are monitoring a live code preview where users leave comments on selected text.",
               "",
+              "Comment lifecycle: pending → answered (auto on your reply) → resolved (user only).",
+              "If the user disagrees with your answer, they reply back and it returns to pending.",
+              "",
               "Follow this loop:",
               "1. Call `get_pending_comments` to check for any comments already posted.",
-              "2. Process each pending comment: read the file, make the requested change or reply, then call `resolve_comment`.",
-              "3. Call `wait_for_comment` to block until the next comment arrives.",
+              "2. Process each pending comment: read the file, make the requested change, then call `reply_to_comment` to explain what you did.",
+              "   Your reply automatically marks the comment as 'answered'. The user will review and resolve it.",
+              "3. Call `wait_for_comment` to block until the next comment (or reopened comment) arrives.",
               "4. When a comment arrives, process it the same way (step 2).",
               "5. Go back to step 3 and keep listening.",
               "",
               "Tips:",
               "- Use `get_file_with_annotations` to see comments in context within the file.",
               "- Use `reply_to_comment` to acknowledge or ask clarifying questions.",
-              "- Always `resolve_comment` after addressing feedback.",
+              "- Do NOT resolve comments — the user does that after reviewing your work.",
             ].join("\n"),
           },
         },

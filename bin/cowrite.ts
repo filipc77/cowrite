@@ -75,7 +75,7 @@ COMMENTS_FILE="\${CLAUDE_PROJECT_DIR:-.}/.cowrite-comments.json"
 if [ ! -f "$COMMENTS_FILE" ] || [ ! -s "$COMMENTS_FILE" ]; then exit 0; fi
 PENDING=$(jq '[.[] | select(.status == "pending")] | length' "$COMMENTS_FILE" 2>/dev/null || echo 0)
 if [ "$PENDING" -eq 0 ]; then exit 0; fi
-jq -r '[.[] | select(.status == "pending")] | "COWRITE: \\(length) pending comment(s) from the live preview. For EACH comment: (1) make the requested change, (2) call reply_to_comment to explain what you did — the user reads replies in the browser, and (3) call resolve_comment.\\n" + ([.[] | "- [\\(.id)] File: \\(.file | split("/") | last) | Text: \\"\\(.selectedText)\\" | Comment: \\(.comment)"] | join("\\n"))' "$COMMENTS_FILE" 2>/dev/null
+jq -r '[.[] | select(.status == "pending")] | "COWRITE: \\(length) pending comment(s) from the live preview. For EACH comment: (1) make the requested change, (2) call reply_to_comment to explain what you did. Your reply automatically marks it as answered. The user will review and resolve it.\\n" + ([.[] | "- [\\(.id)] File: \\(.file | split("/") | last) | Text: \\"\\(.selectedText)\\" | Comment: \\(.comment)"] | join("\\n"))' "$COMMENTS_FILE" 2>/dev/null
 `;
 
 const HOOK_ENTRY = {
@@ -110,8 +110,7 @@ Check for any pending comments left in the Cowrite live preview and address them
    a. Read the comment text and the selected text it refers to.
    b. Use \`get_file_with_annotations\` to see the comment in context.
    c. Make the requested change or reply explaining why you can't.
-   d. Call \`reply_to_comment\` to acknowledge the feedback.
-   e. Call \`resolve_comment\` to mark it as addressed.
+   d. Call \`reply_to_comment\` to acknowledge the feedback. Your reply automatically marks it as "answered". The user will review and resolve it.
 3. Summarize what was done.
 `;
 
@@ -129,12 +128,12 @@ Start a background agent that watches for cowrite comments and handles them as t
 
 1. First, handle any existing pending comments:
    a. Call \`get_pending_comments\` to check for unresolved comments.
-   b. For each pending comment, use \`get_file_with_annotations\` to see context, make the change, call \`reply_to_comment\`, and call \`resolve_comment\`.
+   b. For each pending comment, use \`get_file_with_annotations\` to see context, make the change, and call \`reply_to_comment\`. Your reply automatically marks it as "answered".
 
 2. Then, launch a **background** watcher using the Task tool:
    - Use \`subagent_type: "general-purpose"\` and \`run_in_background: true\`
    - The background agent should call \`wait_for_comment\` in a loop
-   - When a comment arrives, it handles it (read file, make change, reply, resolve)
+   - When a comment arrives, it handles it (read file, make change, reply)
    - On timeout, it re-calls \`wait_for_comment\` immediately
    - The loop continues until the user says stop
 
