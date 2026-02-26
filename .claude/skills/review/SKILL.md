@@ -15,6 +15,5 @@ Check for any pending comments left in the Cowrite live preview and address them
    a. Read the comment text and the selected text it refers to.
    b. Use `get_file_with_annotations` to see the comment in context.
    c. Make the requested change or reply explaining why you can't.
-   d. Call `reply_to_comment` to acknowledge the feedback.
-   e. Call `resolve_comment` to mark it as addressed.
+   d. Call `reply_to_comment` to acknowledge the feedback. Your reply automatically marks it as "answered". The user will review and resolve it.
 3. Summarize what was done.

@@ -223,6 +223,9 @@ export function createPreviewServer(
       case "comment_resolve":
         store.resolve(msg.commentId);
         break;
+      case "comment_reopen":
+        store.reopen(msg.commentId);
+        break;
       case "comment_delete":
         store.delete(msg.commentId);
         break;

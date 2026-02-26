@@ -118,6 +118,17 @@ export class CommentStore extends EventEmitter {
     return comment;
   }
 
+  reopen(commentId: string): Comment | null {
+    const comment = this.comments.get(commentId);
+    if (!comment || comment.status !== "resolved") return null;
+    comment.status = "pending";
+    comment.resolvedAt = null;
+    this.emit("change", comment);
+    this.emit("comment_reopened", comment);
+    this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
+    return comment;
+  }
+
   delete(commentId: string): boolean {
     const existed = this.comments.delete(commentId);
     if (existed) {
@@ -137,6 +148,15 @@ export class CommentStore extends EventEmitter {
       createdAt: new Date().toISOString(),
     };
     comment.replies.push(reply);
+    // Agent reply on pending → answered
+    if (from === "agent" && comment.status === "pending") {
+      comment.status = "answered";
+    }
+    // User reply on answered → back to pending (re-opens conversation)
+    if (from === "user" && comment.status === "answered") {
+      comment.status = "pending";
+      this.emit("comment_reopened", comment);
+    }
     this.emit("change", comment);
     this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
     return reply;
@@ -146,7 +166,7 @@ export class CommentStore extends EventEmitter {
     return this.comments.get(commentId) ?? null;
   }
 
-  getAll(filter?: { file?: string; status?: "pending" | "resolved" | "all" }): Comment[] {
+  getAll(filter?: { file?: string; status?: "pending" | "answered" | "resolved" | "all" }): Comment[] {
     let results = Array.from(this.comments.values());
     if (filter?.file) {
       results = results.filter((c) => c.file === filter.file);
@@ -167,6 +187,7 @@ export class CommentStore extends EventEmitter {
     if (fileComments.length === 0) return;
 
     for (const comment of fileComments) {
+      if (!comment.selectedText) continue;  // file comments don't re-anchor
       // Try to find the selected text in the new content near original offset
       const searchStart = Math.max(0, comment.offset - 200);
       const searchEnd = Math.min(newContent.length, comment.offset + comment.length + 200);

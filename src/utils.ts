@@ -132,6 +132,11 @@ export function annotateFileWithComments(content: string, comments: Comment[]): 
   let result = content;
 
   for (const c of sorted) {
+    if (!c.selectedText) {
+      // File comment — prepend to file
+      result = `[FILE COMMENT #${c.id.slice(0, 8)}: "${c.comment}"]\n` + result;
+      continue;
+    }
     const marker = `[COMMENT #${c.id.slice(0, 8)}: "${c.comment}"]`;
     const end = c.offset + c.length;
     // Insert marker after the selected text

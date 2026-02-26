@@ -12,7 +12,7 @@ export interface Comment {
   length: number;
   selectedText: string;
   comment: string;
-  status: "pending" | "resolved";
+  status: "pending" | "answered" | "resolved";
   replies: Reply[];
   createdAt: string;
   resolvedAt: string | null;
@@ -23,6 +23,7 @@ export type WSClientMessage =
   | { type: "comment_add"; file: string; offset: number; length: number; selectedText: string; comment: string }
   | { type: "comment_reply"; commentId: string; text: string }
   | { type: "comment_resolve"; commentId: string }
+  | { type: "comment_reopen"; commentId: string }
   | { type: "comment_delete"; commentId: string }
   | { type: "switch_file"; file: string }
   | { type: "edit_apply"; offset: number; length: number; newText: string };

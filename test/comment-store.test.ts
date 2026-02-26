@@ -85,6 +85,127 @@ describe("CommentStore", () => {
     expect(store.addReply("nonexistent", "user", "hello")).toBeNull();
   });
 
+  it("should transition pending → answered on agent reply", () => {
+    const comment = store.add({
+      file: "/test/file.md",
+      offset: 0,
+      length: 3,
+      selectedText: "abc",
+      comment: "test",
+    });
+
+    store.addReply(comment.id, "agent", "Done!");
+    expect(store.get(comment.id)?.status).toBe("answered");
+  });
+
+  it("should NOT transition pending on user reply", () => {
+    const comment = store.add({
+      file: "/test/file.md",
+      offset: 0,
+      length: 3,
+      selectedText: "abc",
+      comment: "test",
+    });
+
+    store.addReply(comment.id, "user", "More info");
+    expect(store.get(comment.id)?.status).toBe("pending");
+  });
+
+  it("should transition answered → pending on user reply", () => {
+    const comment = store.add({
+      file: "/test/file.md",
+      offset: 0,
+      length: 3,
+      selectedText: "abc",
+      comment: "test",
+    });
+
+    store.addReply(comment.id, "agent", "Done!");
+    expect(store.get(comment.id)?.status).toBe("answered");
+
+    store.addReply(comment.id, "user", "Not quite, try again");
+    expect(store.get(comment.id)?.status).toBe("pending");
+  });
+
+  it("should emit comment_reopened when user replies on answered", () => {
+    const comment = store.add({
+      file: "/test/file.md",
+      offset: 0,
+      length: 3,
+      selectedText: "abc",
+      comment: "test",
+    });
+
+    store.addReply(comment.id, "agent", "Done!");
+
+    const handler = vi.fn();
+    store.on("comment_reopened", handler);
+    store.addReply(comment.id, "user", "Not right");
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ id: comment.id, status: "pending" }));
+  });
+
+  describe("reopen", () => {
+    it("should transition resolved → pending and clear resolvedAt", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 3,
+        selectedText: "abc",
+        comment: "test",
+      });
+      store.resolve(comment.id);
+      expect(store.get(comment.id)?.status).toBe("resolved");
+      expect(store.get(comment.id)?.resolvedAt).not.toBeNull();
+
+      const reopened = store.reopen(comment.id);
+      expect(reopened?.status).toBe("pending");
+      expect(reopened?.resolvedAt).toBeNull();
+    });
+
+    it("should return null for non-resolved comment", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 3,
+        selectedText: "abc",
+        comment: "test",
+      });
+      expect(store.reopen(comment.id)).toBeNull();
+    });
+
+    it("should emit comment_reopened event", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 3,
+        selectedText: "abc",
+        comment: "test",
+      });
+      store.resolve(comment.id);
+
+      const handler = vi.fn();
+      store.on("comment_reopened", handler);
+      store.reopen(comment.id);
+      expect(handler).toHaveBeenCalledOnce();
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ id: comment.id, status: "pending" }));
+    });
+
+    it("should return null for unknown comment", () => {
+      expect(store.reopen("nonexistent")).toBeNull();
+    });
+  });
+
+  it("should filter by answered status", () => {
+    const c1 = store.add({ file: "/a.md", offset: 0, length: 1, selectedText: "a", comment: "x" });
+    store.add({ file: "/a.md", offset: 5, length: 1, selectedText: "b", comment: "y" });
+    store.addReply(c1.id, "agent", "Done");
+
+    expect(store.getAll({ status: "answered" })).toHaveLength(1);
+    expect(store.getAll({ status: "pending" })).toHaveLength(1);
+    expect(store.getAll({ status: "all" })).toHaveLength(2);
+  });
+
   it("should filter by file", () => {
     store.add({ file: "/a.md", offset: 0, length: 1, selectedText: "a", comment: "x" });
     store.add({ file: "/b.md", offset: 0, length: 1, selectedText: "b", comment: "y" });
