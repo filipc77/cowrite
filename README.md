@@ -32,40 +32,42 @@ A single Node.js process runs both the HTTP/WebSocket preview server and the MCP
 
 ## Quick Start
 
-### 1. Add Cowrite as an MCP server in Claude Code
-
-No install required — `npx` downloads and runs it automatically:
+### 1. Install Cowrite
 
 ```bash
-claude mcp add -s user cowrite -- npx -y @filipc77/cowrite serve
+npm install -g @filipc77/cowrite
 ```
 
-### 2. Open the preview
+This gives you the `cowrite` command globally.
 
-The browser opens automatically when the MCP server starts. The default port is `3377`, but if it's in use (e.g. running cowrite in multiple repos), it automatically picks the next available port. Use `--no-open` to disable auto-opening.
+### 2. Add Cowrite as an MCP server in Claude Code
+
+```bash
+claude mcp add -s user cowrite -- npx -y @filipc77/cowrite@latest serve
+```
+
+### 3. Open the preview
+
+The browser opens automatically when a new Claude Code session starts. The default port is `3377`, but if it's in use (e.g. running cowrite in multiple repos), it automatically picks the next available port.
+
+If you need to reopen the browser later (e.g. you closed the tab), run from any terminal:
+
+```bash
+cowrite open
+```
 
 Pick a file and you'll see a live preview.
 
-### 3. Select text and comment
+### 4. Select text and comment
 
 Select any text in the preview. A **Comment** button appears — click it to open the comment form. Your text selection stays intact, so you can still copy-paste normally.
 
-### 4. Start the background watcher (recommended)
+### 5. The agent picks up your comments
 
-In your Claude Code session, type:
+Comments are handled in two ways:
 
-```
-/watch
-```
-
-This starts a background watcher that handles comments as they arrive — without blocking your main conversation. You only need to do this once per session.
-
-### 5. The agent handles your comments
-
-Even without `/watch`, comments reach the agent through auto-installed hooks:
-
-- **`UserPromptSubmit` hook** — Whenever you send any message, pending comments are injected into the agent's context. The agent makes the change, replies in the browser preview, and resolves the comment.
-- **`Stop` hook** — When the agent finishes any task, it checks for pending comments before going idle. Catches comments that arrive while the agent is busy.
+- **On your next message** — Whenever you send any message to the agent, pending comments are automatically included. The agent sees them, makes the changes, and resolves them. You don't need to mention the comments — just send any message (even about something else) and the agent will handle them.
+- **`/watch` (hands-free)** — Type `/watch` once per session to start a background watcher. The agent handles comments as soon as they arrive, without you needing to send a message. Your main conversation stays free for other work.
 
 ### 6. Auto-installed integration
 
@@ -77,15 +79,17 @@ On first run, `cowrite serve` installs into your project's `.claude/` directory:
 ## CLI Reference
 
 ```
-cowrite preview <file> [--port N]   Open browser preview for a specific file + start MCP server
 cowrite serve [--port N]             Start MCP server + preview server (browse any file)
-cowrite open [--port N]              Open the browser to the preview URL
+cowrite preview <file> [--port N]    Open browser preview for a specific file + start MCP server
+cowrite open [--port N]              Open the browser to an already-running preview server
 
 Options:
   --port, -p    Port for preview server (default: 3377)
-  --no-open     Don't auto-open the browser
+  --no-open     Don't auto-open the browser on serve/preview startup
   --help, -h    Show help
 ```
+
+`serve` and `preview` auto-open the browser on startup. Use `--no-open` to disable this. To reopen the browser later (e.g. after closing a tab), run `cowrite open` from any terminal.
 
 ## MCP Tools
 

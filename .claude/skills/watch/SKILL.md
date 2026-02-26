@@ -1,20 +1,24 @@
 ---
 name: watch
-description: Enter a live comment-watching loop — wait for comments, handle them, and keep listening
+description: Start a background watcher for cowrite comments — does not block the main conversation
 user_invocable: true
 ---
 
-# Watch for Live Comments
+# Watch for Live Comments (Background)
 
-Enter a continuous loop that watches for comments in the Cowrite live preview and addresses them as they arrive.
+Start a background agent that watches for cowrite comments and handles them as they arrive. The main conversation stays free for other work.
 
 ## Steps
 
-1. Call `get_pending_comments` to pick up any comments already posted.
-2. For each pending comment:
-   a. Use `get_file_with_annotations` to see the comment anchored in the file.
-   b. Make the requested change, or call `reply_to_comment` to ask a clarifying question.
-   c. Call `resolve_comment` to mark it as addressed.
-3. Call `wait_for_comment` to block until the next comment is posted.
-4. When a comment arrives, process it (repeat step 2).
-5. **IMPORTANT**: Go back to step 3 immediately — even on timeout. Never stop the loop. Always re-call `wait_for_comment` right away. Keep watching until the user explicitly tells you to stop.
+1. First, handle any existing pending comments:
+   a. Call `get_pending_comments` to check for unresolved comments.
+   b. For each pending comment, use `get_file_with_annotations` to see context, make the change, call `reply_to_comment`, and call `resolve_comment`.
+
+2. Then, launch a **background** watcher using the Task tool:
+   - Use `subagent_type: "general-purpose"` and `run_in_background: true`
+   - The background agent should call `wait_for_comment` in a loop
+   - When a comment arrives, it handles it (read file, make change, reply, resolve)
+   - On timeout, it re-calls `wait_for_comment` immediately
+   - The loop continues until the user says stop
+
+3. Tell the user the background watcher is running and they can continue working normally. Comments will be handled automatically.

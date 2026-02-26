@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { resolve, join } from "node:path";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, unlinkSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CommentStore } from "../src/comment-store.js";
 import { createMcpServer } from "../src/mcp-server.js";
@@ -21,7 +21,27 @@ Options:
   --help, -h    Show this help
 `;
 
-function setupShutdown(store: CommentStore, preview: { stop: () => Promise<void>; [k: string]: any }) {
+const PORT_FILE = ".cowrite-port";
+
+function writePortFile(projectDir: string, port: number): void {
+  writeFileSync(join(projectDir, PORT_FILE), String(port), "utf-8");
+}
+
+function removePortFile(projectDir: string): void {
+  try { unlinkSync(join(projectDir, PORT_FILE)); } catch {}
+}
+
+function readPortFile(projectDir: string): number | null {
+  try {
+    const content = readFileSync(join(projectDir, PORT_FILE), "utf-8").trim();
+    const port = parseInt(content, 10);
+    return isNaN(port) ? null : port;
+  } catch {
+    return null;
+  }
+}
+
+function setupShutdown(store: CommentStore, preview: { stop: () => Promise<void>; [k: string]: any }, projectDir: string) {
   let shuttingDown = false;
   const shutdown = () => {
     if (shuttingDown) {
@@ -30,6 +50,7 @@ function setupShutdown(store: CommentStore, preview: { stop: () => Promise<void>
     }
     shuttingDown = true;
     process.stderr.write("Shutting down...\n");
+    removePortFile(projectDir);
     // Best-effort cleanup with a hard timeout
     Promise.allSettled([store.stopWatching(), preview.stop()])
       .finally(() => process.exit(0));
@@ -196,6 +217,7 @@ async function main() {
     try {
       await preview.start();
       previewRunning = true;
+      writePortFile(projectDir, preview.port);
       const previewUrl = `http://localhost:${preview.port}`;
       process.stderr.write(`Preview: ${previewUrl}\n`);
       if (!values["no-open"]) openBrowser(previewUrl);
@@ -211,7 +233,7 @@ async function main() {
 
     process.stderr.write(`Cowrite MCP server running on stdio\n`);
 
-    setupShutdown(store, preview);
+    setupShutdown(store, preview, projectDir);
   } else if (command === "preview") {
     const filePath = positionals[1];
     if (!filePath) {
@@ -232,6 +254,7 @@ async function main() {
     try {
       await preview.start();
       previewRunning2 = true;
+      writePortFile(projectDir, preview.port);
       const previewUrl = `http://localhost:${preview.port}`;
       process.stderr.write(`Preview: ${previewUrl}\n`);
       if (!values["no-open"]) openBrowser(previewUrl);
@@ -247,11 +270,12 @@ async function main() {
 
     process.stderr.write(`Cowrite MCP server running on stdio\n`);
 
-    setupShutdown(store, preview);
+    setupShutdown(store, preview, projectDir);
   } else if (command === "open") {
-    const url = `http://localhost:${port}`;
+    const discoveredPort = readPortFile(projectDir) ?? port;
+    const url = `http://localhost:${discoveredPort}`;
     process.stderr.write(`Opening ${url}\n`);
-    openBrowser(url);
+    await openBrowser(url);
   } else {
     process.stderr.write(`Unknown command: ${command}\n`);
     process.stderr.write(USAGE);

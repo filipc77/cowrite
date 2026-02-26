@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .cowrite-comments.json
+.cowrite-port
 *.tsbuildinfo
 .DS_Store
 .claude/*

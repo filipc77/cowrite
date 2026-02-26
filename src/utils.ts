@@ -3,14 +3,18 @@ import { marked } from "marked";
 import type { Comment } from "./types.js";
 
 /**
- * Open a URL in the user's default browser (fire-and-forget).
+ * Open a URL in the user's default browser.
+ * Returns a promise so callers can await if needed (e.g. before process exit).
  */
-export function openBrowser(url: string): void {
+export function openBrowser(url: string): Promise<void> {
   const cmd = process.platform === "darwin" ? `open "${url}"`
     : process.platform === "win32" ? `cmd /c start "" "${url}"`
     : `xdg-open "${url}"`;
-  exec(cmd, (err) => {
-    if (err) process.stderr.write(`Could not open browser: ${err.message}\n`);
+  return new Promise((resolve) => {
+    exec(cmd, (err) => {
+      if (err) process.stderr.write(`Could not open browser: ${err.message}\n`);
+      resolve();
+    });
   });
 }
 
