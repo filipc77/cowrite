@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, relative } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -165,10 +165,10 @@ export function createPreviewServer(
       await switchClientFile(ws, absPath);
     }
 
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
         const msg: WSClientMessage = JSON.parse(data.toString());
-        handleClientMessage(ws, msg);
+        await handleClientMessage(ws, msg);
       } catch (err) {
         send(ws, { type: "error", message: `Invalid message: ${err}` });
       }
@@ -198,11 +198,11 @@ export function createPreviewServer(
     }
   }
 
-  function handleClientMessage(ws: WebSocket, msg: WSClientMessage): void {
+  async function handleClientMessage(ws: WebSocket, msg: WSClientMessage): Promise<void> {
     switch (msg.type) {
       case "switch_file": {
         const absPath = resolve(resolvedProjectDir, msg.file);
-        switchClientFile(ws, absPath);
+        await switchClientFile(ws, absPath);
         break;
       }
       case "comment_add": {
@@ -223,6 +223,23 @@ export function createPreviewServer(
       case "comment_resolve":
         store.resolve(msg.commentId);
         break;
+      case "comment_delete":
+        store.delete(msg.commentId);
+        break;
+      case "edit_apply": {
+        const file = clientFiles.get(ws);
+        if (!file) break;
+        const watcher = watchers.get(file);
+        if (!watcher) break;
+        const content = watcher.getContent();
+        if (msg.offset < 0 || msg.offset + msg.length > content.length) {
+          send(ws, { type: "error", message: "Edit offset/length out of bounds" });
+          break;
+        }
+        const newContent = content.slice(0, msg.offset) + msg.newText + content.slice(msg.offset + msg.length);
+        await writeFile(file, newContent, "utf-8");
+        break;
+      }
     }
   }
 

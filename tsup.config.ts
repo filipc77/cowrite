@@ -1,4 +1,5 @@
 import { defineConfig } from "tsup";
+import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig({
   entry: ["bin/cowrite.ts"],
@@ -10,4 +11,8 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
+  define: {
+    "__COWRITE_VERSION__": JSON.stringify(pkg.version),
+  },
+  external: ["update-notifier"],
 });

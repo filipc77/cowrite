@@ -6,6 +6,13 @@ import { CommentStore } from "../src/comment-store.js";
 import { createMcpServer } from "../src/mcp-server.js";
 import { createPreviewServer } from "../src/preview-server.js";
 import { openBrowser } from "../src/utils.js";
+import updateNotifier from "update-notifier";
+import { createRequire } from "node:module";
+
+declare const __COWRITE_VERSION__: string | undefined;
+const version: string = typeof __COWRITE_VERSION__ !== "undefined"
+  ? __COWRITE_VERSION__
+  : (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
 const USAGE = `
 cowrite — Live commenting plugin for coding agent sessions
@@ -201,6 +208,9 @@ async function main() {
   }
 
   const command = positionals[0];
+
+  updateNotifier({ pkg: { name: "@filipc77/cowrite", version } }).notify({ isGlobal: true });
+
   const projectDir = process.cwd();
   const port = parseInt(values.port as string, 10);
 

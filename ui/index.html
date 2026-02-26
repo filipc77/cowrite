@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown-dark.css" id="gmc-dark" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown-light.css" id="gmc-light" disabled />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css" id="hljs-dark" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github.min.css" id="hljs-light" disabled />
 </head>
 <body>
   <header>
@@ -22,6 +26,9 @@
       <span class="file-path" id="filePath"></span>
     </div>
     <div class="header-right">
+      <button class="undo-btn" id="undoBtn" disabled title="Undo (Cmd+Z)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
       <span class="status" id="status">
         <span class="status-dot"></span>
         Connecting...
@@ -50,8 +57,10 @@
     </div>
   </main>
 
-  <!-- Floating comment button (appears on text selection) -->
-  <button class="comment-trigger" id="commentTrigger" hidden>Comment</button>
+  <!-- Floating selection toolbar (appears on text selection) -->
+  <div class="selection-toolbar" id="selectionToolbar" hidden>
+    <button id="commentTrigger">Comment</button>
+  </div>
 
   <!-- Comment form (appears when comment button is clicked) -->
   <div class="comment-popup" id="commentPopup" hidden>
@@ -61,6 +70,14 @@
     <div class="popup-actions">
       <button id="commentCancel" class="secondary">Cancel</button>
       <button id="commentSubmit">Submit</button>
+    </div>
+  </div>
+
+  <!-- Highlight popover (appears when clicking a comment highlight) -->
+  <div class="highlight-popover" id="highlightPopover" hidden>
+    <div class="highlight-popover-text" id="highlightPopoverText"></div>
+    <div class="highlight-popover-actions">
+      <button id="highlightEditBtn">Edit</button>
     </div>
   </div>
 

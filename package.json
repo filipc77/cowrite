@@ -1,7 +1,7 @@
 {
   "name": "@filipc77/cowrite",
   "version": "0.4.28",
-  "description": "Live commenting plugin for coding agent sessions",
+  "description": "Live commenting and inline editing plugin for coding agent sessions",
   "type": "module",
   "bin": {
     "cowrite": "./dist/bin/cowrite.js"
@@ -27,12 +27,15 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "chokidar": "^4.0.3",
+    "highlight.js": "^11.11.1",
     "marked": "^15.0.7",
+    "update-notifier": "^7.3.1",
     "ws": "^8.18.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
+    "@types/update-notifier": "^6.0.8",
     "@types/ws": "^8.18.0",
     "tsup": "^8.4.0",
     "tsx": "^4.19.3",

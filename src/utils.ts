@@ -1,5 +1,6 @@
 import { exec } from "node:child_process";
 import { marked, Renderer, type Tokens } from "marked";
+import hljs from "highlight.js";
 import type { Comment } from "./types.js";
 
 /**
@@ -31,6 +32,17 @@ export function renderToHtml(content: string, filePath: string): string {
 }
 
 function renderMarkdownWithOffsets(content: string): string {
+  // Build block offset map from lexer tokens
+  const tokens = marked.lexer(content);
+  const blocks: Array<{ sourceStart: number; sourceEnd: number }> = [];
+  let blockOffset = 0;
+  for (const token of tokens) {
+    if (token.type !== "space") {
+      blocks.push({ sourceStart: blockOffset, sourceEnd: blockOffset + token.raw.length });
+    }
+    blockOffset += token.raw.length;
+  }
+
   const renderer = new Renderer();
   const defaultCodeRenderer = renderer.code.bind(renderer);
 
@@ -38,27 +50,68 @@ function renderMarkdownWithOffsets(content: string): string {
     if (token.lang === "mermaid") {
       return `<div class="mermaid-container"><pre class="mermaid">${token.text}</pre></div>`;
     }
-    return defaultCodeRenderer(token);
+    try {
+      let highlighted: string;
+      let lang: string;
+      if (token.lang && hljs.getLanguage(token.lang)) {
+        const result = hljs.highlight(token.text, { language: token.lang });
+        highlighted = result.value;
+        lang = token.lang;
+      } else {
+        const result = hljs.highlightAuto(token.text);
+        highlighted = result.value;
+        lang = result.language || "plaintext";
+      }
+      return `<div class="code-block-wrapper" data-lang="${lang}"><div class="code-block-header"><span class="code-block-lang">${lang}</span><button class="code-copy-btn" type="button">Copy</button></div><pre><code class="hljs language-${lang}">${highlighted}</code></pre></div>`;
+    } catch {
+      return defaultCodeRenderer(token);
+    }
   };
 
   const html = marked.parse(content, { async: false, renderer }) as string;
-  // Wrap the rendered HTML in a container with data attributes for offset mapping
-  // The client-side JS will handle offset computation from the rendered text nodes
-  return `<div class="markdown-body" data-source-length="${content.length}">${html}</div>`;
+  const blocksAttr = JSON.stringify(blocks).replace(/"/g, "&quot;");
+  return `<div class="markdown-body" data-source-length="${content.length}" data-blocks="${blocksAttr}">${html}</div>`;
 }
 
 function renderPlainTextWithOffsets(content: string): string {
   const lines = content.split("\n");
   let offset = 0;
-  const htmlLines: string[] = [];
+  const blocks: Array<{ sourceStart: number; sourceEnd: number }> = [];
+  const htmlParts: string[] = [];
+  let currentLines: string[] = [];
+  let blockStart = 0;
+  let blockIndex = 0;
 
-  for (const line of lines) {
-    const escaped = escapeHtml(line);
-    htmlLines.push(`<span class="line" data-offset="${offset}" data-length="${line.length}">${escaped}</span>`);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineOffset = offset;
     offset += line.length + 1; // +1 for the newline
+
+    if (line.trim() === "") {
+      if (currentLines.length > 0) {
+        blocks.push({ sourceStart: blockStart, sourceEnd: lineOffset });
+        htmlParts.push(`<div class="text-block" data-block-index="${blockIndex}">${currentLines.join("\n")}</div>`);
+        blockIndex++;
+        currentLines = [];
+      }
+      htmlParts.push("");
+      blockStart = offset;
+    } else {
+      if (currentLines.length === 0) {
+        blockStart = lineOffset;
+      }
+      const escaped = escapeHtml(line);
+      currentLines.push(`<span class="line" data-offset="${lineOffset}" data-length="${line.length}">${escaped}</span>`);
+    }
   }
 
-  return `<pre class="plain-text" data-source-length="${content.length}">${htmlLines.join("\n")}</pre>`;
+  if (currentLines.length > 0) {
+    blocks.push({ sourceStart: blockStart, sourceEnd: Math.min(offset, content.length) });
+    htmlParts.push(`<div class="text-block" data-block-index="${blockIndex}">${currentLines.join("\n")}</div>`);
+  }
+
+  const blocksAttr = JSON.stringify(blocks).replace(/"/g, "&quot;");
+  return `<pre class="plain-text" data-source-length="${content.length}" data-blocks="${blocksAttr}">${htmlParts.join("\n")}</pre>`;
 }
 
 function escapeHtml(text: string): string {
