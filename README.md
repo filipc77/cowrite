@@ -32,13 +32,14 @@ A single Node.js process runs both the HTTP/WebSocket preview server and the MCP
 
 ## Quick Start
 
-### 1. Install Cowrite
+### 1. Install and set up
 
 ```bash
 npm install -g @filipc77/cowrite
+cowrite init
 ```
 
-This gives you the `cowrite` command globally (needed for `cowrite open`). Optional if you only use `npx`.
+The global install gives you the `cowrite` CLI. `cowrite init` installs hooks and skills into your project's `.claude/` directory so they're available when Claude Code starts.
 
 ### 2. Add Cowrite as an MCP server in Claude Code
 
@@ -87,6 +88,7 @@ On first run, `cowrite serve` installs into your project's `.claude/` directory:
 ## CLI Reference
 
 ```
+cowrite init                         Install hooks and skills into .claude/ (run once per project)
 cowrite serve [--port N]             Start MCP server + preview server (browse any file)
 cowrite preview <file> [--port N]    Open browser preview for a specific file + start MCP server
 cowrite open [--port N]              Open the browser to an already-running preview server
@@ -97,7 +99,7 @@ Options:
   --help, -h    Show help
 ```
 
-`serve` and `preview` auto-open the browser on startup. Use `--no-open` to disable this. To reopen the browser later (e.g. after closing a tab), run `cowrite open` from any terminal.
+`init` installs Claude Code hooks and skills before your first session. `serve` and `preview` auto-open the browser on startup — use `--no-open` to disable. `open` reopens the browser from any terminal (reads the port from `.cowrite-port`).
 
 ## MCP Tools
 

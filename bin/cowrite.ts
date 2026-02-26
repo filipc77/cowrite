@@ -11,8 +11,9 @@ const USAGE = `
 cowrite — Live commenting plugin for coding agent sessions
 
 Usage:
-  cowrite preview <file> [--port N]   Open browser preview for a specific file + start MCP server
+  cowrite init                         Install hooks and skills into .claude/ (run once per project)
   cowrite serve [--port N]             Start MCP server + preview server (browse any file)
+  cowrite preview <file> [--port N]    Open browser preview for a specific file + start MCP server
   cowrite open [--port N]              Open the browser to the preview URL
 
 Options:
@@ -271,6 +272,8 @@ async function main() {
     process.stderr.write(`Cowrite MCP server running on stdio\n`);
 
     setupShutdown(store, preview, projectDir);
+  } else if (command === "init") {
+    process.stderr.write("Installed cowrite hooks and skills into .claude/\n");
   } else if (command === "open") {
     const discoveredPort = readPortFile(projectDir) ?? port;
     const url = `http://localhost:${discoveredPort}`;
