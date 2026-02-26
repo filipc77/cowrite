@@ -327,6 +327,41 @@ function computeOffset(selection, text) {
   const idx = currentContent.indexOf(text);
   if (idx !== -1) return idx;
 
+  // Exact match failed — likely a cross-element selection (e.g. multiple list
+  // items) where the browser's selection.toString() strips markdown syntax.
+  // Use the DOM block structure to scope the search.
+  const markdownBody = fileContentEl.querySelector(".markdown-body");
+  if (markdownBody && currentBlocks.length) {
+    let el = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode;
+    while (el && el.parentElement !== markdownBody) {
+      el = el.parentElement;
+    }
+    if (el && el.parentElement === markdownBody) {
+      let blockIndex = 0;
+      let sib = el.previousElementSibling;
+      while (sib) {
+        blockIndex++;
+        sib = sib.previousElementSibling;
+      }
+      if (blockIndex < currentBlocks.length) {
+        const block = currentBlocks[blockIndex];
+        const blockSource = currentContent.slice(block.sourceStart, block.sourceEnd);
+        const firstLine = text.split("\n")[0].trim();
+        if (firstLine) {
+          const lineIdx = blockSource.indexOf(firstLine);
+          if (lineIdx !== -1) return block.sourceStart + lineIdx;
+        }
+      }
+    }
+  }
+
+  // Last resort: match the first line of the selection anywhere in the content
+  const firstLine = text.split("\n")[0].trim();
+  if (firstLine && firstLine !== text) {
+    const flIdx = currentContent.indexOf(firstLine);
+    if (flIdx !== -1) return flIdx;
+  }
+
   return -1;
 }
 
