@@ -826,6 +826,40 @@ main {
   transform: scale(0.96);
 }
 
+/* ---- Format buttons ---- */
+.format-buttons {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.format-buttons[hidden] { display: none; }
+.format-buttons button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  padding: 0;
+}
+.format-buttons button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0;
+  flex-shrink: 0;
+}
+
 /* ---- Comment popup ---- */
 .comment-popup {
   position: fixed;

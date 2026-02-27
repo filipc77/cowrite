@@ -85,26 +85,63 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
   );
 
   // Tool: wait_for_comment
+  // Track reply counts at the time each comment was last returned, so we can
+  // detect new user replies on already-handled comments in the early pending check.
+  const lastSeenReplyCounts = new Map<string, number>();
+
+  function formatCommentPayload(
+    comment: { id: string; file: string; selectedText: string; comment: string; replies?: Array<{ from: string; text: string }> },
+    event: "new_comment" | "follow_up",
+  ) {
+    const file = relative(projectDir, comment.file);
+    const replies = comment.replies ?? [];
+    lastSeenReplyCounts.set(comment.id, replies.length);
+    const payload: Record<string, unknown> = { ...comment, file, event };
+    if (event === "follow_up" && replies.length > 0) {
+      // Include the latest user reply so the agent can see what changed
+      const userReplies = replies.filter((r) => r.from === "user");
+      if (userReplies.length > 0) {
+        payload.latestUserReply = userReplies[userReplies.length - 1].text;
+      }
+    }
+    return payload;
+  }
+
   server.tool(
     "wait_for_comment",
-    "Block until a new comment is posted in the live preview, then return it. This is the primary way to receive real-time comments — call it again immediately after handling each comment to keep listening. If it times out, call it again.",
+    "Block until a new or follow-up comment is posted in the live preview, then return it. Returns an 'event' field: 'new_comment' for brand-new comments, 'follow_up' when the user replied to an already-answered comment. For follow-ups, 'latestUserReply' contains the new reply text. Call again immediately after handling each result to keep listening.",
     {
       timeout: z.number().optional().describe("Max seconds to wait (default: 30)"),
     },
     ({ timeout }, { signal }: { signal?: AbortSignal }) => {
       const maxWait = (timeout ?? 30) * 1000;
 
-      // Check for comments that arrived while no one was listening
+      // Check for comments that arrived while no one was listening.
+      // Only return a pending comment if it's brand-new (never seen) or
+      // has new replies since we last returned it.
       const pending = store.getAll({ status: "pending" });
-      if (pending.length > 0) {
-        const latest = pending[pending.length - 1];
-        const file = relative(projectDir, latest.file);
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({ ...latest, file }, null, 2),
-          }],
-        };
+      for (const c of pending) {
+        const prevCount = lastSeenReplyCounts.get(c.id);
+        if (prevCount === undefined) {
+          // Brand-new comment we've never returned
+          const payload = formatCommentPayload(c, "new_comment");
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(payload, null, 2),
+            }],
+          };
+        }
+        if (c.replies.length > prevCount) {
+          // Existing comment with new replies (user follow-up)
+          const payload = formatCommentPayload(c, "follow_up");
+          return {
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(payload, null, 2),
+            }],
+          };
+        }
       }
 
       return new Promise((resolve) => {
@@ -118,13 +155,24 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
           });
         }, maxWait);
 
-        const onComment = (comment: { id: string; file: string; selectedText: string; comment: string }) => {
+        const onNewComment = (comment: { id: string; file: string; selectedText: string; comment: string; replies?: Array<{ from: string; text: string }> }) => {
           cleanup();
-          const file = relative(projectDir, comment.file);
+          const payload = formatCommentPayload(comment, "new_comment");
           resolve({
             content: [{
               type: "text" as const,
-              text: JSON.stringify({ ...comment, file }, null, 2),
+              text: JSON.stringify(payload, null, 2),
+            }],
+          });
+        };
+
+        const onReopened = (comment: { id: string; file: string; selectedText: string; comment: string; replies?: Array<{ from: string; text: string }> }) => {
+          cleanup();
+          const payload = formatCommentPayload(comment, "follow_up");
+          resolve({
+            content: [{
+              type: "text" as const,
+              text: JSON.stringify(payload, null, 2),
             }],
           });
         };
@@ -138,13 +186,13 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
 
         const cleanup = () => {
           clearTimeout(timer);
-          store.off("new_comment", onComment);
-          store.off("comment_reopened", onComment);
+          store.off("new_comment", onNewComment);
+          store.off("comment_reopened", onReopened);
           signal?.removeEventListener("abort", onAbort);
         };
 
-        store.on("new_comment", onComment);
-        store.on("comment_reopened", onComment);
+        store.on("new_comment", onNewComment);
+        store.on("comment_reopened", onReopened);
         signal?.addEventListener("abort", onAbort, { once: true });
 
         // If already aborted before we set up

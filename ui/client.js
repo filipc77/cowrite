@@ -21,6 +21,7 @@ const undoBtn = $("#undoBtn");
 const filePicker = $("#filePicker");
 const fileList = $("#fileList");
 const fileCommentBtn = $("#fileCommentBtn");
+const formatButtons = $("#formatButtons");
 
 /** @type {Comment[]} */
 let comments = [];
@@ -236,6 +237,9 @@ document.addEventListener("mouseup", (e) => {
 
   selectionInfo = { offset, length: text.length, selectedText: text };
 
+  const isMarkdown = /\.(md|mdx)$/i.test(currentFile);
+  formatButtons.hidden = !isMarkdown;
+
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
   selectionToolbar.style.left = `${rect.left + rect.width / 2 - 40}px`;
@@ -369,6 +373,88 @@ function hideTrigger() {
   selectionToolbar.hidden = true;
   selectionInfo = null;
 }
+
+// --- Rich text formatting (markdown files only) ---
+
+const FORMAT_SYNTAX = {
+  bold:          { prefix: "**", suffix: "**" },
+  italic:        { prefix: "*",  suffix: "*" },
+  strikethrough: { prefix: "~~", suffix: "~~" },
+  code:          { prefix: "`",  suffix: "`" },
+};
+
+function applyMarkdownFormat(format) {
+  if (!selectionInfo || selectionInfo.offset < 0) return;
+  const { offset, length, selectedText } = selectionInfo;
+
+  // Exit contenteditable mode first so file_update from our edit applies normally
+  if (contentEditableActive && editingBlockEl) {
+    cancelContentEditable(editingBlockEl);
+  }
+
+  pushUndo();
+
+  if (format === "link") {
+    const url = prompt("Link URL:", "https://");
+    if (!url) return;
+    send({ type: "edit_apply", offset, length, newText: `[${selectedText}](${url})` });
+    hideTrigger();
+    return;
+  }
+
+  if (format === "blockquote") {
+    const lines = selectedText.split("\n").map(l => `> ${l}`).join("\n");
+    send({ type: "edit_apply", offset, length, newText: lines });
+    hideTrigger();
+    return;
+  }
+
+  if (format === "bulletList") {
+    const lines = selectedText.split("\n").map(l => `- ${l}`).join("\n");
+    send({ type: "edit_apply", offset, length, newText: lines });
+    hideTrigger();
+    return;
+  }
+
+  const { prefix, suffix } = FORMAT_SYNTAX[format];
+
+  // Toggle detection: check if selection is already wrapped
+  const before = currentContent.slice(offset - prefix.length, offset);
+  const after = currentContent.slice(offset + length, offset + length + suffix.length);
+  if (before === prefix && after === suffix) {
+    // Unwrap: remove the surrounding markers
+    send({ type: "edit_apply", offset: offset - prefix.length, length: length + prefix.length + suffix.length, newText: selectedText });
+  } else {
+    // Wrap: add markers
+    send({ type: "edit_apply", offset, length, newText: `${prefix}${selectedText}${suffix}` });
+  }
+
+  hideTrigger();
+}
+
+selectionToolbar.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-format]");
+  if (!btn) return;
+  applyMarkdownFormat(btn.dataset.format);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (!selectionInfo || selectionInfo.offset < 0) return;
+  if (!/\.(md|mdx)$/i.test(currentFile)) return;
+  if (e.target.closest("input, textarea, [contenteditable]")) return;
+
+  const mod = e.metaKey || e.ctrlKey;
+  if (!mod) return;
+
+  const map = { b: "bold", i: "italic", e: "code", k: "link" };
+  if (e.shiftKey && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    applyMarkdownFormat("strikethrough");
+  } else if (map[e.key]) {
+    e.preventDefault();
+    applyMarkdownFormat(map[e.key]);
+  }
+});
 
 function hidePopup() {
   popup.hidden = true;
@@ -1228,6 +1314,17 @@ function enterContentEditable(blockIndex, blockEl) {
 
   const blockType = getBlockType(blockEl);
 
+  // Markdown shortcut patterns: detected on Space keydown BEFORE browser default.
+  // This prevents Chrome from auto-formatting "* " into a native list element.
+  const MD_SHORTCUTS = [
+    { pattern: /^(\*|-)\s*$/, prefix: "- " },
+    { pattern: /^1\.\s*$/, prefix: "1. " },
+    { pattern: /^###\s*$/, prefix: "### " },
+    { pattern: /^##\s*$/, prefix: "## " },
+    { pattern: /^#\s*$/, prefix: "# " },
+    { pattern: /^>\s*$/, prefix: "> " },
+  ];
+
   const onKeydown = (e) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -1238,6 +1335,38 @@ function enterContentEditable(blockIndex, blockEl) {
     } else if (e.key === "Enter" && blockType === "heading") {
       e.preventDefault();
       commitContentEditable(blockEl);
+    } else if (e.key === "Enter" && blockType === "paragraph") {
+      // Insert a line break within the same block
+      e.preventDefault();
+      document.execCommand("insertLineBreak");
+    } else if (e.key === " " && blockType === "paragraph") {
+      // Markdown shortcuts: intercept Space BEFORE browser auto-formats.
+      // At keydown time, Space isn't in the DOM yet, so check text before cursor.
+      if (editingBlockIndex === -1 || !contentEditableActive) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      // Get text from start of block to cursor position
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(blockEl);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      const textBeforeCursor = preRange.toString().replace(/\u200B/g, "");
+      // Get text after cursor
+      const postRange = range.cloneRange();
+      postRange.selectNodeContents(blockEl);
+      postRange.setStart(range.endContainer, range.endOffset);
+      const textAfterCursor = postRange.toString().replace(/\u200B/g, "");
+
+      for (const { pattern, prefix } of MD_SHORTCUTS) {
+        if (!pattern.test(textBeforeCursor)) continue;
+        // Match found — prevent browser default (stops Chrome list auto-format)
+        e.preventDefault();
+        const newSource = prefix + textAfterCursor;
+        pendingEditAfterInsert = editingBlockIndex;
+        cleanupContentEditable(blockEl);
+        commitBlockEdit(newSource);
+        return;
+      }
     }
   };
 
@@ -1261,22 +1390,51 @@ function enterContentEditable(blockIndex, blockEl) {
   blockEl.addEventListener("paste", onPaste);
 }
 
+// Walk DOM nodes and reconstruct markdown, preserving inline formatting
+function domToMarkdown(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent.replace(/\u200B/g, "");
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+  const tag = node.tagName.toLowerCase();
+
+  // Line break
+  if (tag === "br") return "  \n";
+
+  // Recurse into children
+  const inner = Array.from(node.childNodes).map(domToMarkdown).join("");
+
+  // Inline formatting
+  if (tag === "strong" || tag === "b") return `**${inner}**`;
+  if (tag === "em" || tag === "i") return `*${inner}*`;
+  if (tag === "del" || tag === "s") return `~~${inner}~~`;
+  if (tag === "code") return `\`${inner}\``;
+  if (tag === "a") {
+    const href = node.getAttribute("href") || "";
+    return `[${inner}](${href})`;
+  }
+
+  return inner;
+}
+
 function extractMarkdownFromElement(element, originalSource) {
   const blockType = getBlockType(element);
-  const text = element.textContent.replace(/\u200B/g, "").trim();
 
   if (blockType === "paragraph") {
-    return text;
+    return domToMarkdown(element).trim();
   }
 
   if (blockType === "heading") {
     const match = originalSource.match(/^(#{1,6})\s/);
     const prefix = match ? match[1] : "#";
-    return prefix + " " + text;
+    const inner = domToMarkdown(element).trim();
+    return prefix + " " + inner;
   }
 
   if (blockType === "blockquote") {
-    return text.split("\n").map(line => "> " + line.trim()).join("\n");
+    const inner = domToMarkdown(element).trim();
+    return inner.split("\n").map(line => "> " + line.trim()).join("\n");
   }
 
   if (blockType === "list") {
@@ -1284,10 +1442,11 @@ function extractMarkdownFromElement(element, originalSource) {
     const items = Array.from(element.querySelectorAll("li"));
     return items.map((li, i) => {
       const prefix = isOrdered ? `${i + 1}. ` : "- ";
-      return prefix + li.textContent.trim();
+      return prefix + domToMarkdown(li).trim();
     }).join("\n");
   }
 
+  const text = (element.innerText || element.textContent).replace(/\u200B/g, "").trim();
   return text;
 }
 
