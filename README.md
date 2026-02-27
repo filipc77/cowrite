@@ -14,11 +14,12 @@ Browser (Preview UI)          Node.js Process              Claude Code
 │ File preview     │     │  HTTP + WebSocket    │     │                    │
 │ Text selection   │◄───►│  server (port 3377)  │     │  MCP tools:        │
 │ Comment creation │     │                      │     │                    │
-│ Comment sidebar  │     │  ┌────────────────┐  │     │  get_pending       │ 
+│ Comment sidebar  │     │  ┌────────────────┐  │     │  get_pending       │
 └──────────────────┘     │  │ CommentStore   │  │     │  resolve           │
                          │  │ (shared memory)│  │     │  reply             │
-                         │  └───────┬────────┘  │     │  get_annotated     │
-                         │          │           │     │   wait_for_comment │
+                         │  └───────┬────────┘  │     │  propose_change    │
+                         │          │           │     │  get_annotated     │
+                         │          │           │     │  wait_for_comment  │
                          │  ┌───────▼────────┐  │     │                    │
                          │  │ MCP Server     │◄─╋────►│                    │
                          │  │ (stdio)        │  │     │                    │
@@ -135,6 +136,16 @@ Sends a reply from the agent, visible in the browser comment sidebar.
 | `commentId` | string | The comment ID to reply to |
 | `reply` | string | The reply text |
 
+### `propose_change`
+
+Proposes a text replacement for a comment's selected text. The user sees a diff in the browser with Apply/Reject buttons. Preferred over direct file edits when responding to comments on selected text.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `commentId` | string | The comment ID to propose a change for |
+| `newText` | string | The replacement text |
+| `explanation` | string | Explanation of the change |
+
 ### `get_file_with_annotations`
 
 Returns the file content with inline comment markers at the positions where comments are anchored:
@@ -192,7 +203,7 @@ Cowrite ships with two built-in Claude Code skills (auto-installed to `.claude/s
    - The `UserPromptSubmit` hook injecting it on the next user message
    - `wait_for_comment` returning immediately (if `/watch` is active)
    - The agent calling `get_pending_comments` directly
-6. The agent makes the change, calls `reply_to_comment` (visible in the browser), then `resolve_comment`
+6. The agent responds — either calling `propose_change` (user sees a diff with Apply/Reject) or `reply_to_comment` + `resolve_comment`
 7. The browser receives the update via WebSocket and shows the reply and resolved state
 
 ## How Edits Flow
