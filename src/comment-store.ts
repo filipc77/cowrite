@@ -229,13 +229,26 @@ export class CommentStore extends EventEmitter {
 
     for (const comment of fileComments) {
       if (!comment.selectedText) continue;  // file comments don't re-anchor
-      // Try to find the selected text in the new content near original offset
+      // Find all occurrences in the search window and pick the closest to original offset
       const searchStart = Math.max(0, comment.offset - 200);
       const searchEnd = Math.min(newContent.length, comment.offset + comment.length + 200);
       const searchRegion = newContent.slice(searchStart, searchEnd);
-      const idx = searchRegion.indexOf(comment.selectedText);
-      if (idx !== -1) {
-        comment.offset = searchStart + idx;
+      let bestOffset = -1;
+      let bestDist = Infinity;
+      let pos = 0;
+      while (pos < searchRegion.length) {
+        const idx = searchRegion.indexOf(comment.selectedText, pos);
+        if (idx === -1) break;
+        const absOffset = searchStart + idx;
+        const dist = Math.abs(absOffset - comment.offset);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestOffset = absOffset;
+        }
+        pos = idx + 1;
+      }
+      if (bestOffset !== -1) {
+        comment.offset = bestOffset;
       }
       // If not found, leave offset as-is (orphaned comment)
     }

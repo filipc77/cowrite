@@ -335,6 +335,28 @@ describe("CommentStore", () => {
     expect(updated?.offset).toBe(16); // "world" moved to index 16
   });
 
+  it("should pick closest occurrence when duplicate text exists", () => {
+    // "word" appears at offset 10 and offset 30 in old content
+    // After a change, "word" appears at offsets 5, 15, and 35
+    // The comment was on offset 30 — it should pick 35 (closest), not 5 (first)
+    const comment = store.add({
+      file: "/test.md",
+      offset: 30,
+      length: 4,
+      selectedText: "word",
+      comment: "check this",
+    });
+
+    const oldContent = "some text word and more text word end";
+    const newContent = "some word and extra text word and more text word end";
+
+    store.adjustOffsets("/test.md", oldContent, newContent);
+
+    const updated = store.get(comment.id);
+    // "word" at positions 5, 25, 44 — closest to original offset 30 is 25
+    expect(updated?.offset).toBe(25);
+  });
+
   it("should persist and load", async () => {
     store.add({ file: "/a.md", offset: 0, length: 1, selectedText: "a", comment: "persisted" });
 
