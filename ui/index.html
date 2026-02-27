@@ -26,6 +26,11 @@
       <span class="file-path" id="filePath"></span>
     </div>
     <div class="header-right">
+      <div class="font-size-toggle" id="fontSizeToggle">
+        <button class="font-size-btn" data-size="regular" title="Regular size"><span>A</span></button>
+        <button class="font-size-btn" data-size="large" title="Large size" aria-pressed="true"><span>A</span></button>
+      </div>
+      <div class="header-divider"></div>
       <button class="undo-btn" id="undoBtn" disabled title="Undo (Cmd+Z)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       </button>
@@ -49,6 +54,7 @@
       <div id="fileContent"></div>
     </div>
 
+    <div class="sidebar-drag-handle" id="sidebarDragHandle"></div>
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h2>Comments <span class="comment-count" id="commentCount">0</span></h2>
@@ -84,13 +90,6 @@
     </div>
   </div>
 
-  <!-- Highlight popover (appears when clicking a comment highlight) -->
-  <div class="highlight-popover" id="highlightPopover" hidden>
-    <div class="highlight-popover-text" id="highlightPopoverText"></div>
-    <div class="highlight-popover-actions">
-      <button id="highlightEditBtn">Edit</button>
-    </div>
-  </div>
 
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';

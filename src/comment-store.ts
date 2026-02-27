@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { watch as chokidarWatch, type FSWatcher } from "chokidar";
-import type { Comment, Reply } from "./types.js";
+import type { Comment, Proposal, Reply } from "./types.js";
 
 const PERSIST_FILE = ".cowrite-comments.json";
 
@@ -160,6 +160,47 @@ export class CommentStore extends EventEmitter {
     this.emit("change", comment);
     this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
     return reply;
+  }
+
+  addProposalReply(commentId: string, newText: string, explanation: string): Reply | null {
+    const comment = this.comments.get(commentId);
+    if (!comment) return null;
+    const proposal: Proposal = {
+      oldText: comment.selectedText,
+      newText,
+      explanation,
+      status: "pending",
+    };
+    const reply: Reply = {
+      id: randomUUID(),
+      from: "agent",
+      text: explanation,
+      createdAt: new Date().toISOString(),
+      proposal,
+    };
+    comment.replies.push(reply);
+    if (comment.status === "pending") {
+      comment.status = "answered";
+    }
+    this.emit("change", comment);
+    this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
+    return reply;
+  }
+
+  updateProposalStatus(commentId: string, replyId: string, status: "applied" | "rejected"): boolean {
+    const comment = this.comments.get(commentId);
+    if (!comment) return false;
+    const reply = comment.replies.find((r) => r.id === replyId);
+    if (!reply?.proposal) return false;
+    reply.proposal.status = status;
+    // When applied, update the comment's anchor to match the new text
+    if (status === "applied") {
+      comment.selectedText = reply.proposal.newText;
+      comment.length = reply.proposal.newText.length;
+    }
+    this.emit("change", comment);
+    this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));
+    return true;
   }
 
   get(commentId: string): Comment | null {

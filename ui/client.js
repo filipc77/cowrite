@@ -14,9 +14,6 @@ const popupSelection = $("#popupSelection");
 const commentInput = $("#commentInput");
 const selectionToolbar = $("#selectionToolbar");
 const commentTrigger = $("#commentTrigger");
-const highlightPopover = $("#highlightPopover");
-const highlightPopoverText = $("#highlightPopoverText");
-const highlightEditBtn = $("#highlightEditBtn");
 const undoBtn = $("#undoBtn");
 const filePicker = $("#filePicker");
 const fileList = $("#fileList");
@@ -34,7 +31,6 @@ let currentBlocks = [];
 let insertBtn = null;
 let insertLine = null;
 let activeGapIndex = -1;
-let activeHighlightCommentId = null;
 let undoStack = [];
 const MAX_UNDO = 50;
 
@@ -46,6 +42,43 @@ let editingContentSnapshot = "";
 let pendingFileUpdate = null;
 let pendingEditAfterInsert = -1;
 let contentEditableActive = false;
+
+// --- Resizable Sidebar ---
+(function initResizableSidebar() {
+  const handle = document.getElementById("sidebarDragHandle");
+  const sidebar = document.getElementById("sidebar");
+  if (!handle || !sidebar) return;
+
+  // Restore saved width
+  const saved = localStorage.getItem("cowrite-sidebar-width");
+  if (saved) document.documentElement.style.setProperty("--sidebar-width", saved + "px");
+
+  let startX = 0;
+  let startWidth = 0;
+
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = sidebar.offsetWidth;
+    document.body.classList.add("sidebar-resizing");
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+
+  function onMouseMove(e) {
+    const delta = startX - e.clientX; // sidebar is on the right
+    const newWidth = Math.min(Math.max(startWidth + delta, 300), window.innerWidth * 0.5);
+    document.documentElement.style.setProperty("--sidebar-width", newWidth + "px");
+  }
+
+  function onMouseUp() {
+    document.body.classList.remove("sidebar-resizing");
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+    const width = sidebar.offsetWidth;
+    localStorage.setItem("cowrite-sidebar-width", String(width));
+  }
+})();
 
 const BLOCK_TYPES = [
   { id: "text",    label: "Text",          category: "Basic blocks", icon: "Aa",  template: "\u200B" },
@@ -91,15 +124,36 @@ function switchFile(file) {
   history.replaceState(null, "", url.toString());
 }
 
+// Track meta key for Cmd+Click to open in new tab
+let lastClickHadMeta = false;
+document.addEventListener("mousedown", (e) => { lastClickHadMeta = e.metaKey || e.ctrlKey; });
+
+function openFileInNewTab(file) {
+  const url = new URL(location.href);
+  url.searchParams.set("file", file);
+  window.open(url.toString(), "_blank");
+}
+
 filePicker.addEventListener("change", () => {
   const file = filePicker.value.trim();
-  if (file) switchFile(file);
+  if (!file) return;
+  if (lastClickHadMeta) {
+    openFileInNewTab(file);
+    filePicker.value = "";
+  } else {
+    switchFile(file);
+  }
 });
 
 filePicker.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    const file = filePicker.value.trim();
-    if (file) switchFile(file);
+  const file = filePicker.value.trim();
+  if (!file) return;
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    openFileInNewTab(file);
+    filePicker.value = "";
+  } else if (e.key === "Enter") {
+    switchFile(file);
   }
 });
 
@@ -526,48 +580,99 @@ function renderComments() {
     return;
   }
 
-  commentListEl.innerHTML = comments.map((c) => `
-    <div class="comment-card ${c.status}" data-id="${c.id}">
-      <button class="comment-delete-btn" onclick="deleteComment('${c.id}')" title="Delete comment">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-      </button>
-      ${c.selectedText
-        ? `<div class="comment-selected-text">${escapeHtml(c.selectedText)}</div>`
-        : `<div class="comment-file-badge">Whole file</div>`
-      }
-      <div class="comment-text">${escapeHtml(c.comment)}</div>
-      ${c.replies.length > 0 ? `
-        <div class="comment-replies">
-          ${c.replies.map((r) => `
-            <div class="reply ${r.from}">
-              <div class="reply-from ${r.from}">${r.from}</div>
-              <div>${escapeHtml(r.text)}</div>
-            </div>
-          `).join("")}
-        </div>
-      ` : ""}
-      <div class="comment-meta">
-        <span>${timeAgo(c.createdAt)}</span>
-        <span class="comment-status ${c.status}">${c.status}</span>
+  commentListEl.innerHTML = comments.map((c) => {
+    const repliesHtml = c.replies.length > 0 ? `
+      <div class="comment-replies">
+        ${c.replies.map((r) => r.proposal ? `
+          <div class="reply agent proposal-reply proposal-${r.proposal.status}">
+            <div class="reply-from agent">agent — proposal</div>
+            <div class="proposal-explanation">${escapeHtml(r.proposal.explanation)}</div>
+            ${r.proposal.status === "pending" ? `
+              <div class="proposal-diff">
+                <div class="proposal-old"><span class="proposal-label">Current</span><pre>${escapeHtml(r.proposal.oldText)}</pre></div>
+                <div class="proposal-new"><span class="proposal-label">Proposed</span><pre>${escapeHtml(r.proposal.newText)}</pre></div>
+              </div>
+              <div class="proposal-actions">
+                <button class="proposal-apply-btn" onclick="applyProposal('${c.id}', '${r.id}')">Apply</button>
+                <button class="proposal-reject-btn" onclick="rejectProposal('${c.id}', '${r.id}')">Reject</button>
+              </div>
+            ` : r.proposal.status === "applied" ? `
+              <div class="proposal-diff">
+                <div class="proposal-new"><span class="proposal-label">&#10003; Applied</span><pre>${escapeHtml(r.proposal.newText)}</pre></div>
+              </div>
+            ` : `
+              <div class="proposal-diff">
+                <div class="proposal-old"><span class="proposal-label">&#10007; Rejected</span><pre>${escapeHtml(r.proposal.oldText)}</pre></div>
+              </div>
+            `}
+          </div>
+        ` : `
+          <div class="reply ${r.from}">
+            <div class="reply-from ${r.from}">${r.from}</div>
+            <div>${escapeHtml(r.text)}</div>
+          </div>
+        `).join("")}
       </div>
-      ${c.status !== "resolved" ? `
+    ` : "";
+
+    if (c.status === "resolved") {
+      const truncated = c.comment.length > 60 ? c.comment.slice(0, 60) + "..." : c.comment;
+      return `
+        <div class="comment-card resolved" data-id="${c.id}">
+          <button class="comment-delete-btn" onclick="deleteComment('${c.id}')" title="Delete comment">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <div class="resolved-summary" onclick="toggleResolvedExpand('${c.id}')">
+            <svg class="resolved-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="comment-status resolved">resolved</span>
+            <span class="resolved-summary-text">${escapeHtml(truncated)}</span>
+          </div>
+          <div class="resolved-details" hidden>
+            ${c.selectedText
+              ? `<div class="comment-selected-text">${escapeHtml(c.selectedText)}</div>`
+              : `<div class="comment-file-badge">Whole file</div>`
+            }
+            <div class="comment-text">${escapeHtml(c.comment)}</div>
+            ${repliesHtml}
+            <div class="comment-meta">
+              <span>${timeAgo(c.createdAt)}</span>
+            </div>
+            <div class="comment-actions">
+              <button onclick="reopenComment('${c.id}')">Reopen</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="comment-card ${c.status}" data-id="${c.id}">
+        <button class="comment-delete-btn" onclick="deleteComment('${c.id}')" title="Delete comment">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+        ${c.selectedText
+          ? `<div class="comment-selected-text">${escapeHtml(c.selectedText)}</div>`
+          : `<div class="comment-file-badge">Whole file</div>`
+        }
+        <div class="comment-text">${escapeHtml(c.comment)}</div>
+        ${repliesHtml}
+        <div class="comment-meta">
+          <span>${timeAgo(c.createdAt)}</span>
+          <span class="comment-status ${c.status}">${c.status}</span>
+        </div>
         <div class="comment-actions">
           <button onclick="showReplyForm('${c.id}')">Reply</button>
           <button onclick="resolveComment('${c.id}')">Resolve</button>
         </div>
-      ` : `
-        <div class="comment-actions">
-          <button onclick="reopenComment('${c.id}')">Reopen</button>
-        </div>
-      `}
-      <div class="reply-form" id="reply-form-${c.id}" hidden>
-        <textarea rows="2" placeholder="Reply..."></textarea>
-        <div class="reply-form-actions">
-          <button onclick="submitReply('${c.id}')">Send</button>
+        <div class="reply-form" id="reply-form-${c.id}" hidden>
+          <textarea rows="2" placeholder="Reply..."></textarea>
+          <div class="reply-form-actions">
+            <button onclick="submitReply('${c.id}')">Send</button>
+          </div>
         </div>
       </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 
   // Click to scroll to highlight
   for (const card of commentListEl.querySelectorAll(".comment-card")) {
@@ -613,6 +718,25 @@ window.submitReply = function (id) {
   send({ type: "comment_reply", commentId: id, text });
   textarea.value = "";
   form.hidden = true;
+};
+
+window.applyProposal = function (commentId, replyId) {
+  send({ type: "proposal_apply", commentId, replyId });
+};
+
+window.rejectProposal = function (commentId, replyId) {
+  send({ type: "proposal_reject", commentId, replyId });
+};
+
+window.toggleResolvedExpand = function (id) {
+  const card = commentListEl.querySelector(`.comment-card[data-id="${id}"]`);
+  if (!card) return;
+  const details = card.querySelector(".resolved-details");
+  const chevron = card.querySelector(".resolved-chevron");
+  if (!details) return;
+  const expanding = details.hidden;
+  details.hidden = !expanding;
+  card.classList.toggle("resolved-expanded", expanding);
 };
 
 // --- Highlights ---
@@ -742,6 +866,24 @@ themeToggle.addEventListener("change", () => {
   localStorage.setItem(THEME_KEY, theme);
   applyTheme(theme);
 });
+
+// --- Font size toggle ---
+const FONT_SIZE_KEY = "cowrite-font-size";
+(function initFontSize() {
+  const saved = localStorage.getItem(FONT_SIZE_KEY) || "large";
+  if (saved === "large") document.body.classList.add("font-large");
+  for (const btn of document.querySelectorAll(".font-size-btn")) {
+    btn.setAttribute("aria-pressed", btn.dataset.size === saved ? "true" : "false");
+    btn.addEventListener("click", () => {
+      const size = btn.dataset.size;
+      document.body.classList.toggle("font-large", size === "large");
+      localStorage.setItem(FONT_SIZE_KEY, size);
+      for (const b of document.querySelectorAll(".font-size-btn")) {
+        b.setAttribute("aria-pressed", b.dataset.size === size ? "true" : "false");
+      }
+    });
+  }
+})();
 
 // Hide trigger when selection is cleared
 document.addEventListener("selectionchange", () => {
@@ -1490,15 +1632,23 @@ fileContentEl.addEventListener("click", (e) => {
   const target = e.target;
   if (target.closest("a, .mermaid-container, .block-insert-btn, .block-type-menu, .inline-editor, .block-edit-wrapper, .block-editing, .code-block-header")) return;
 
-  // Handle comment highlight clicks
+  // Handle comment highlight clicks — scroll to sidebar card (skip resolved, let them edit)
   const highlightEl = target.closest(".comment-highlight");
   if (highlightEl) {
     const commentId = highlightEl.dataset.commentId;
     const comment = comments.find(c => c.id === commentId);
-    if (comment) {
-      showHighlightPopover(highlightEl, comment);
+    if (comment && comment.status !== "resolved") {
+      for (const card of commentListEl.querySelectorAll(".comment-card")) {
+        card.classList.remove("active");
+      }
+      const card = commentListEl.querySelector(`.comment-card[data-id="${comment.id}"]`);
+      if (card) {
+        card.classList.add("active");
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      return;
     }
-    return;
+    // Resolved highlights fall through to block editing
   }
 
   if (!currentBlocks.length) return;
@@ -1523,55 +1673,12 @@ fileContentEl.addEventListener("click", (e) => {
   });
 });
 
-// --- Highlight Popover ---
-
-function showHighlightPopover(el, comment) {
-  activeHighlightCommentId = comment.id;
-  highlightPopoverText.textContent = comment.comment;
-
-  const rect = el.getBoundingClientRect();
-  highlightPopover.style.left = `${Math.min(rect.left, window.innerWidth - 260)}px`;
-  highlightPopover.style.top = `${rect.bottom + 8}px`;
-  highlightPopover.hidden = false;
-
-  // Highlight and scroll to the corresponding comment card in the sidebar
-  for (const card of commentListEl.querySelectorAll(".comment-card")) {
-    card.classList.remove("active");
-  }
-  const card = commentListEl.querySelector(`.comment-card[data-id="${comment.id}"]`);
-  if (card) {
-    card.classList.add("active");
-    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-}
-
-function hideHighlightPopover() {
-  highlightPopover.hidden = true;
-  activeHighlightCommentId = null;
-  for (const card of commentListEl.querySelectorAll(".comment-card.active")) {
-    card.classList.remove("active");
-  }
-}
-
-highlightEditBtn.addEventListener("click", () => {
-  if (!activeHighlightCommentId) return;
-  const comment = comments.find(c => c.id === activeHighlightCommentId);
-  if (!comment) { hideHighlightPopover(); return; }
-
-  for (let i = 0; i < currentBlocks.length; i++) {
-    const b = currentBlocks[i];
-    if (comment.offset >= b.sourceStart && comment.offset < b.sourceEnd) {
-      hideHighlightPopover();
-      enterBlockEditDispatch(i);
-      return;
-    }
-  }
-  hideHighlightPopover();
-});
-
+// --- Highlight click: clear active on outside click ---
 document.addEventListener("mousedown", (e) => {
-  if (!highlightPopover.hidden && !highlightPopover.contains(e.target) && !e.target.closest(".comment-highlight")) {
-    hideHighlightPopover();
+  if (!e.target.closest(".comment-highlight")) {
+    for (const card of commentListEl.querySelectorAll(".comment-card.active")) {
+      card.classList.remove("active");
+    }
   }
 });
 

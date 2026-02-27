@@ -243,6 +243,38 @@ export function createPreviewServer(
         await writeFile(file, newContent, "utf-8");
         break;
       }
+      case "proposal_apply": {
+        const comment = store.get(msg.commentId);
+        if (!comment) {
+          send(ws, { type: "error", message: "Comment not found" });
+          break;
+        }
+        const reply = comment.replies.find((r) => r.id === msg.replyId);
+        if (!reply?.proposal || reply.proposal.status !== "pending") {
+          send(ws, { type: "error", message: "Proposal not found or not pending" });
+          break;
+        }
+        const pFile = comment.file;
+        const pWatcher = watchers.get(pFile);
+        if (!pWatcher) {
+          send(ws, { type: "error", message: "File not being watched" });
+          break;
+        }
+        const pContent = pWatcher.getContent();
+        const pSlice = pContent.slice(comment.offset, comment.offset + comment.length);
+        if (pSlice !== comment.selectedText) {
+          send(ws, { type: "error", message: "File content has changed — selected text no longer matches at this position" });
+          break;
+        }
+        const pNewContent = pContent.slice(0, comment.offset) + reply.proposal.newText + pContent.slice(comment.offset + comment.length);
+        await writeFile(pFile, pNewContent, "utf-8");
+        store.updateProposalStatus(msg.commentId, msg.replyId, "applied");
+        break;
+      }
+      case "proposal_reject": {
+        store.updateProposalStatus(msg.commentId, msg.replyId, "rejected");
+        break;
+      }
     }
   }
 

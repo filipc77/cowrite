@@ -185,6 +185,53 @@ header h1 {
   letter-spacing: 0.2px;
 }
 
+/* ---- Font size toggle ---- */
+.font-size-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.font-size-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.font-size-btn[data-size="regular"] span { font-size: 11px; }
+.font-size-btn[data-size="large"] span { font-size: 15px; }
+
+.font-size-btn:hover {
+  color: var(--text-dim);
+}
+
+.font-size-btn[aria-pressed="true"] {
+  background: var(--surface-hover);
+  color: var(--accent);
+}
+
+/* Large font size mode */
+body.font-large #fileContent .markdown-body {
+  font-size: 19px !important;
+}
+
+body.font-large #fileContent .plain-text {
+  font-size: 15px !important;
+}
+
 /* ---- Undo button ---- */
 .undo-btn {
   display: flex;
@@ -443,6 +490,7 @@ main {
 .comment-highlight.resolved {
   background: transparent;
   border-bottom: none;
+  cursor: text;
 }
 
 [data-theme="light"] .comment-highlight:hover {
@@ -453,10 +501,31 @@ main {
   background: rgba(58, 114, 160, 0.12);
 }
 
+/* ---- Sidebar drag handle ---- */
+.sidebar-drag-handle {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+  z-index: 10;
+}
+
+.sidebar-drag-handle:hover,
+body.sidebar-resizing .sidebar-drag-handle {
+  background: var(--accent);
+}
+
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 /* ---- Sidebar ---- */
 .sidebar {
-  width: 360px;
-  min-width: 360px;
+  width: var(--sidebar-width, 360px);
+  min-width: 300px;
+  max-width: 50vw;
   background: var(--surface);
   border-left: 1px solid var(--border);
   overflow-y: auto;
@@ -596,12 +665,58 @@ main {
 }
 
 .comment-card.resolved {
-  opacity: 0.5;
   border-left: 3px solid var(--green);
+  padding: 10px 14px;
 }
 
-.comment-card.resolved:hover {
-  opacity: 0.7;
+.comment-card.resolved .comment-text,
+.comment-card.resolved .comment-selected-text,
+.comment-card.resolved .comment-meta {
+  color: var(--text-faint);
+}
+
+.comment-card.resolved .comment-selected-text {
+  border-left-color: var(--green);
+  background: var(--green-bg);
+}
+
+/* Resolved collapsed summary */
+.resolved-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.resolved-summary:hover .resolved-summary-text {
+  color: var(--text-dim);
+}
+
+.resolved-chevron {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.comment-card.resolved-expanded .resolved-chevron {
+  transform: rotate(90deg);
+}
+
+.resolved-summary-text {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  transition: color 0.15s ease;
+}
+
+.resolved-details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 @keyframes card-enter {
@@ -1269,6 +1384,130 @@ main {
   padding-right: 2px;
 }
 
+/* ---- Proposal diff ---- */
+.proposal-explanation {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
 
+.proposal-diff {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.proposal-diff pre {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.proposal-label {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px 0;
+}
+
+.proposal-old {
+  background: rgba(212, 97, 110, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+
+.proposal-old .proposal-label { color: var(--red); }
+
+.proposal-new {
+  background: rgba(111, 191, 138, 0.08);
+}
+
+.proposal-new .proposal-label { color: var(--green); }
+
+.proposal-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.proposal-apply-btn {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--green);
+  color: var(--bg);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.proposal-apply-btn:hover { opacity: 0.85; }
+
+.proposal-reject-btn {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.proposal-reject-btn:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.proposal-status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 100px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.proposal-status-badge.applied {
+  color: var(--green);
+  background: var(--green-bg);
+}
+
+.proposal-status-badge.rejected {
+  color: var(--red);
+  background: rgba(212, 97, 110, 0.08);
+}
+
+.proposal-reply.proposal-applied .proposal-diff {
+  border-left: 3px solid var(--green);
+}
+
+.proposal-reply.proposal-rejected .proposal-diff {
+  border-left: 3px solid var(--text-faint);
+}
+
+.proposal-reply.proposal-rejected .proposal-diff pre {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+
+.proposal-reply.proposal-rejected .proposal-label {
+  color: var(--text-faint);
+}
+
+.proposal-reply.proposal-rejected .proposal-old {
+  background: var(--surface-hover);
+}
 
 
