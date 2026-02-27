@@ -96,6 +96,55 @@ describe("MCP Server", () => {
     expect(text).toBe("No comments found.");
   });
 
+  it("should list propose_change in tools", async () => {
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("propose_change");
+  });
+
+  it("should propose a change and store proposal on reply", async () => {
+    const comment = store.add({
+      file: join(tempDir, "test.md"),
+      offset: 0,
+      length: 5,
+      selectedText: "hello",
+      comment: "Capitalize this",
+    });
+
+    const result = await client.callTool({
+      name: "propose_change",
+      arguments: { commentId: comment.id, newText: "Hello", explanation: "Capitalized first letter" },
+    });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toContain("Proposal added");
+
+    const updated = store.get(comment.id);
+    expect(updated?.replies).toHaveLength(1);
+    expect(updated?.replies[0].proposal).toBeDefined();
+    expect(updated?.replies[0].proposal?.oldText).toBe("hello");
+    expect(updated?.replies[0].proposal?.newText).toBe("Hello");
+    expect(updated?.replies[0].proposal?.status).toBe("pending");
+    expect(updated?.status).toBe("answered");
+  });
+
+  it("should reject propose_change for file-level comments", async () => {
+    const comment = store.add({
+      file: join(tempDir, "test.md"),
+      offset: 0,
+      length: 0,
+      selectedText: "",
+      comment: "General feedback",
+    });
+
+    const result = await client.callTool({
+      name: "propose_change",
+      arguments: { commentId: comment.id, newText: "new", explanation: "change" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toContain("file-level comment");
+  });
+
   it("should get file with annotations", async () => {
     const testFile = join(tempDir, "annotated.md");
     await writeFile(testFile, "Hello world, this is a test file.", "utf-8");

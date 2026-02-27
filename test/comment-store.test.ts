@@ -196,6 +196,89 @@ describe("CommentStore", () => {
     });
   });
 
+  describe("addProposalReply", () => {
+    it("should create a reply with proposal field", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 5,
+        selectedText: "hello",
+        comment: "Fix this",
+      });
+
+      const reply = store.addProposalReply(comment.id, "Hello", "Capitalize it");
+      expect(reply).not.toBeNull();
+      expect(reply!.from).toBe("agent");
+      expect(reply!.text).toBe("Capitalize it");
+      expect(reply!.proposal).toBeDefined();
+      expect(reply!.proposal!.oldText).toBe("hello");
+      expect(reply!.proposal!.newText).toBe("Hello");
+      expect(reply!.proposal!.explanation).toBe("Capitalize it");
+      expect(reply!.proposal!.status).toBe("pending");
+
+      const updated = store.get(comment.id);
+      expect(updated?.status).toBe("answered");
+      expect(updated?.replies).toHaveLength(1);
+      expect(updated?.replies[0].proposal).toBeDefined();
+    });
+
+    it("should return null for unknown comment", () => {
+      expect(store.addProposalReply("nonexistent", "new", "explain")).toBeNull();
+    });
+  });
+
+  describe("updateProposalStatus", () => {
+    it("should change proposal status to applied", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 5,
+        selectedText: "hello",
+        comment: "Fix this",
+      });
+      const reply = store.addProposalReply(comment.id, "Hello", "Capitalize it");
+
+      const result = store.updateProposalStatus(comment.id, reply!.id, "applied");
+      expect(result).toBe(true);
+
+      const updated = store.get(comment.id);
+      expect(updated?.replies[0].proposal?.status).toBe("applied");
+    });
+
+    it("should change proposal status to rejected", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 5,
+        selectedText: "hello",
+        comment: "Fix this",
+      });
+      const reply = store.addProposalReply(comment.id, "Hello", "Capitalize it");
+
+      const result = store.updateProposalStatus(comment.id, reply!.id, "rejected");
+      expect(result).toBe(true);
+
+      const updated = store.get(comment.id);
+      expect(updated?.replies[0].proposal?.status).toBe("rejected");
+    });
+
+    it("should return false for non-proposal reply", () => {
+      const comment = store.add({
+        file: "/test/file.md",
+        offset: 0,
+        length: 5,
+        selectedText: "hello",
+        comment: "Fix this",
+      });
+      const reply = store.addReply(comment.id, "agent", "Done!");
+      expect(store.updateProposalStatus(comment.id, reply!.id, "applied")).toBe(false);
+    });
+
+    it("should return false for unknown comment", () => {
+      expect(store.updateProposalStatus("nonexistent", "fake-reply", "applied")).toBe(false);
+    });
+  });
+
   it("should filter by answered status", () => {
     const c1 = store.add({ file: "/a.md", offset: 0, length: 1, selectedText: "a", comment: "x" });
     store.add({ file: "/a.md", offset: 5, length: 1, selectedText: "b", comment: "y" });

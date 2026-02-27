@@ -59,6 +59,42 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
     }
   );
 
+  // Tool: propose_change
+  server.tool(
+    "propose_change",
+    "Propose a text change for a comment's selected text. The user sees a diff and can Apply or Reject. Preferred over direct edits when responding to comments on selected text.",
+    {
+      commentId: z.string().describe("The comment ID to propose a change for"),
+      newText: z.string().describe("The replacement text"),
+      explanation: z.string().describe("Explanation of the change"),
+    },
+    async ({ commentId, newText, explanation }) => {
+      const comment = store.get(commentId);
+      if (!comment) {
+        return {
+          content: [{ type: "text" as const, text: `Comment ${commentId} not found.` }],
+          isError: true,
+        };
+      }
+      if (!comment.selectedText) {
+        return {
+          content: [{ type: "text" as const, text: `Comment ${commentId} is a file-level comment with no selected text. Use reply_to_comment instead.` }],
+          isError: true,
+        };
+      }
+      const reply = store.addProposalReply(commentId, newText, explanation);
+      if (!reply) {
+        return {
+          content: [{ type: "text" as const, text: `Failed to add proposal to comment ${commentId}.` }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: `Proposal added to comment ${commentId}. The user can now review and apply or reject it.` }],
+      };
+    }
+  );
+
   // Tool: get_file_with_annotations
   server.tool(
     "get_file_with_annotations",
@@ -327,7 +363,9 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
               "",
               "Follow this loop:",
               "1. Call `get_pending_comments` to check for any comments already posted.",
-              "2. Process each pending comment: read the file, make the requested change, then call `reply_to_comment` to explain what you did.",
+              "2. Process each pending comment: read the file, then respond:",
+              "   - If the comment is on selected text, prefer `propose_change` to suggest a diff the user can Apply/Reject.",
+              "   - For file-level comments or questions, use `reply_to_comment` to explain what you did.",
               "   Your reply automatically marks the comment as 'answered'. The user will review and resolve it.",
               "3. Call `wait_for_comment` to block until the next comment (or reopened comment) arrives.",
               "4. When a comment arrives, process it the same way (step 2).",
