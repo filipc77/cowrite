@@ -234,14 +234,33 @@ function wrapRange(textNodes, start, end, comment) {
 
 /**
  * Initialize comment highlight click behavior.
+ * Clicking a highlight scrolls to & highlights the matching sidebar card.
  */
 export function initCommentHighlights() {
   const commentListEl = $('#commentList');
+
   document.addEventListener('mousedown', (e) => {
-    if (!e.target.closest('.comment-highlight')) {
+    const highlight = e.target.closest('.comment-highlight');
+
+    // Clear active state when clicking outside highlights
+    if (!highlight) {
       for (const card of commentListEl.querySelectorAll('.comment-card.active')) {
         card.classList.remove('active');
       }
+      return;
     }
+
+    // Scroll sidebar to the matching comment card
+    const commentId = highlight.dataset?.commentId;
+    if (!commentId) return;
+    const card = commentListEl.querySelector(`.comment-card[data-id="${commentId}"]`);
+    if (!card) return;
+
+    // Clear previous active states
+    for (const c of commentListEl.querySelectorAll('.comment-card.active')) {
+      c.classList.remove('active');
+    }
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 }

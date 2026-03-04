@@ -124,10 +124,18 @@ export function renderComments() {
     `;
   }).join("");
 
-  // Click to scroll to highlight
+  // Click to scroll to highlight and mark card active
   for (const card of commentListEl.querySelectorAll(".comment-card")) {
     card.addEventListener("click", (e) => {
       if (e.target.tagName === "BUTTON" || e.target.tagName === "TEXTAREA") return;
+
+      // Mark this card active
+      for (const c of commentListEl.querySelectorAll(".comment-card.active")) {
+        c.classList.remove("active");
+      }
+      card.classList.add("active");
+
+      // Scroll to and flash the in-content highlight
       const id = card.dataset.id;
       const highlight = fileContentEl.querySelector(`[data-comment-id="${id}"]`);
       if (highlight) {
