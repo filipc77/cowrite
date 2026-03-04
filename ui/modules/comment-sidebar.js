@@ -127,7 +127,7 @@ export function renderComments() {
   // Click to scroll to highlight and mark card active
   for (const card of commentListEl.querySelectorAll(".comment-card")) {
     card.addEventListener("click", (e) => {
-      if (e.target.tagName === "BUTTON" || e.target.tagName === "TEXTAREA") return;
+      if (e.target.closest("button, textarea, .proposal-actions, .reply-form, .comment-actions")) return;
 
       // Mark this card active
       for (const c of commentListEl.querySelectorAll(".comment-card.active")) {
