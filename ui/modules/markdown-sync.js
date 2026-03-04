@@ -5,6 +5,7 @@ import { send } from './ws-client.js';
 import { pushUndo } from './undo-manager.js';
 import { loadUndoStack } from './undo-manager.js';
 import { applyHighlights } from './comment-highlight.js';
+import { renderComments } from './comment-sidebar.js';
 import { $ } from './utils.js';
 
 let pendingUpdate = null;
@@ -158,6 +159,8 @@ export function handleFileUpdate(msg) {
   if (editor) {
     // Apply content update
     setMarkdownContent(msg.content);
+    // Re-render comments so orphan checks run against fresh editor content
+    renderComments();
     postProcessContent().then(() => applyHighlights(editor, true));
   }
 }
@@ -174,6 +177,7 @@ export function applyPendingUpdate() {
   state.currentHtml = msg.html;
   state.editorDirty = false;
   setMarkdownContent(msg.content);
+  renderComments();
   const editor = getEditor();
   postProcessContent().then(() => applyHighlights(editor, true));
 }

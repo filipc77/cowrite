@@ -77,7 +77,11 @@ export function createEditor(container, options = {}) {
 export function setMarkdownContent(markdown) {
   if (!editor) return;
   isProgrammaticUpdate = true;
+  // Preserve scroll position — setContent resets cursor which causes scroll jumps
+  const scrollEl = editor.view.dom.closest('.content-panel') || editor.view.dom.parentElement;
+  const scrollTop = scrollEl?.scrollTop ?? 0;
   editor.commands.setContent(markdown, false);
+  if (scrollEl) scrollEl.scrollTop = scrollTop;
   isProgrammaticUpdate = false;
 }
 
