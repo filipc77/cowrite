@@ -13,6 +13,18 @@ export interface Reply {
   proposal?: Proposal;
 }
 
+export interface TextQuoteSelector {
+  exact: string;     // The selected text
+  prefix: string;    // ~30 chars before selection
+  suffix: string;    // ~30 chars after selection
+}
+
+export interface CommentAnchor {
+  textQuote: TextQuoteSelector;
+  offset: number;
+  length: number;
+}
+
 export interface Comment {
   id: string;
   file: string;
@@ -24,11 +36,12 @@ export interface Comment {
   replies: Reply[];
   createdAt: string;
   resolvedAt: string | null;
+  anchor?: CommentAnchor;
 }
 
 // WebSocket messages: Browser → Server
 export type WSClientMessage =
-  | { type: "comment_add"; file: string; offset: number; length: number; selectedText: string; comment: string }
+  | { type: "comment_add"; file: string; offset: number; length: number; selectedText: string; comment: string; anchor?: CommentAnchor }
   | { type: "comment_reply"; commentId: string; text: string }
   | { type: "comment_resolve"; commentId: string }
   | { type: "comment_reopen"; commentId: string }
