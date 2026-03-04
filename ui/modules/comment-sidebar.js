@@ -4,7 +4,7 @@ import { $, escapeHtml, timeAgo } from './utils.js';
 import { state } from './state.js';
 import { send } from './ws-client.js';
 import { resolveAnchor } from './comment-anchoring.js';
-import { isMarkdownFile } from './editor.js';
+import { getEditor, isMarkdownFile } from './editor.js';
 
 const fileContentEl = $("#fileContent");
 const commentListEl = $("#commentList");
@@ -21,14 +21,19 @@ export function renderComments() {
   }
 
   commentListEl.innerHTML = state.comments.map((c) => {
-    // Check if the anchor is orphaned (text no longer found in content)
+    // Check if the anchor is orphaned (text no longer found in content).
+    // For markdown files, anchors use ProseMirror flat text, not raw markdown.
     const isOrphaned = c.selectedText && state.currentContent && (() => {
       const anchor = c.anchor || {
         textQuote: { exact: c.selectedText, prefix: '', suffix: '' },
         offset: c.offset || 0,
         length: c.selectedText.length,
       };
-      return resolveAnchor(anchor, state.currentContent) === null;
+      const editor = getEditor();
+      const searchText = (editor && isMarkdownFile(state.currentFile))
+        ? editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', '\n')
+        : state.currentContent;
+      return resolveAnchor(anchor, searchText) === null;
     })();
 
     const repliesHtml = c.replies.length > 0 ? `

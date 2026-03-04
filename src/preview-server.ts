@@ -262,12 +262,19 @@ export function createPreviewServer(
           break;
         }
         const pContent = pWatcher.getContent();
-        const pSlice = pContent.slice(comment.offset, comment.offset + comment.length);
-        if (pSlice !== comment.selectedText) {
-          send(ws, { type: "error", message: "File content has changed — selected text no longer matches at this position" });
+        // Find the selected text in file content — the stored offset may be
+        // ProseMirror-based (flat text) rather than raw file offset, so we
+        // search near the stored offset first, then fall back to global search.
+        const oldText = reply.proposal.oldText || comment.selectedText;
+        let pIdx = pContent.indexOf(oldText, Math.max(0, comment.offset - 200));
+        if (pIdx === -1 || Math.abs(pIdx - comment.offset) > 500) {
+          pIdx = pContent.indexOf(oldText);
+        }
+        if (pIdx === -1) {
+          send(ws, { type: "error", message: "File content has changed — selected text no longer found" });
           break;
         }
-        const pNewContent = pContent.slice(0, comment.offset) + reply.proposal.newText + pContent.slice(comment.offset + comment.length);
+        const pNewContent = pContent.slice(0, pIdx) + reply.proposal.newText + pContent.slice(pIdx + oldText.length);
         await writeFile(pFile, pNewContent, "utf-8");
         store.updateProposalStatus(msg.commentId, msg.replyId, "applied");
         break;
