@@ -793,6 +793,24 @@ body.sidebar-resizing {
   background: var(--green-bg);
 }
 
+/* ---- Orphaned comments ---- */
+.comment-card.orphaned {
+  opacity: 0.7;
+}
+
+.orphaned-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: rgba(212, 97, 110, 0.1);
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-left: 6px;
+}
+
 /* ---- Replies ---- */
 .comment-replies {
   margin-top: 12px;
@@ -1510,4 +1528,124 @@ body.sidebar-resizing {
   background: var(--surface-hover);
 }
 
+/* ---- TipTap / ProseMirror overrides ---- */
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+}
 
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-faint);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.ProseMirror th {
+  background: var(--surface-hover);
+  font-weight: 600;
+}
+
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ProseMirror ul[data-type="taskList"] li input[type="checkbox"] {
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+
+.ProseMirror .hljs {
+  background: var(--surface) !important;
+}
+
+/* Ensure the TipTap editor inherits markdown-body styles */
+#fileContent .ProseMirror {
+  font-family: var(--font-sans);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+#fileContent .ProseMirror h1 { font-size: 2em; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+#fileContent .ProseMirror h2 { font-size: 1.5em; font-weight: 600; margin: 20px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+#fileContent .ProseMirror h3 { font-size: 1.25em; font-weight: 600; margin: 16px 0 8px; }
+#fileContent .ProseMirror h4 { font-size: 1em; font-weight: 600; margin: 12px 0 6px; }
+
+#fileContent .ProseMirror p { margin: 0 0 16px; }
+#fileContent .ProseMirror ul,
+#fileContent .ProseMirror ol { padding-left: 2em; margin: 0 0 16px; }
+#fileContent .ProseMirror li { margin: 4px 0; }
+#fileContent .ProseMirror li p { margin: 0; }
+
+#fileContent .ProseMirror blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 16px;
+  color: var(--text-dim);
+  margin: 0 0 16px;
+}
+
+#fileContent .ProseMirror pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+
+#fileContent .ProseMirror code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+#fileContent .ProseMirror :not(pre) > code {
+  background: var(--surface-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+#fileContent .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+#fileContent .ProseMirror a {
+  color: var(--accent);
+  text-decoration: none;
+}
+#fileContent .ProseMirror a:hover {
+  text-decoration: underline;
+}
+
+#fileContent .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Large font size mode for TipTap */
+body.font-large #fileContent .ProseMirror {
+  font-size: 19px !important;
+}

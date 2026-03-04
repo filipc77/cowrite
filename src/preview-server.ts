@@ -214,6 +214,7 @@ export function createPreviewServer(
           length: msg.length,
           selectedText: msg.selectedText,
           comment: msg.comment,
+          anchor: msg.anchor,
         });
         break;
       }

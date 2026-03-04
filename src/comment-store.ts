@@ -3,9 +3,31 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { watch as chokidarWatch, type FSWatcher } from "chokidar";
-import type { Comment, Proposal, Reply } from "./types.js";
+import type { Comment, CommentAnchor, Proposal, Reply } from "./types.js";
 
 const PERSIST_FILE = ".cowrite-comments.json";
+
+/** Count matching chars from end of both strings (for prefix comparison) */
+function countMatchingCharsFromEnd(a: string, b: string): number {
+  let count = 0;
+  const minLen = Math.min(a.length, b.length);
+  for (let i = 0; i < minLen; i++) {
+    if (a[a.length - 1 - i] === b[b.length - 1 - i]) count++;
+    else break;
+  }
+  return count;
+}
+
+/** Count matching chars from start of both strings (for suffix comparison) */
+function countMatchingCharsFromStart(a: string, b: string): number {
+  let count = 0;
+  const minLen = Math.min(a.length, b.length);
+  for (let i = 0; i < minLen; i++) {
+    if (a[i] === b[i]) count++;
+    else break;
+  }
+  return count;
+}
 
 export class CommentStore extends EventEmitter {
   private comments: Map<string, Comment> = new Map();
@@ -88,6 +110,7 @@ export class CommentStore extends EventEmitter {
     length: number;
     selectedText: string;
     comment: string;
+    anchor?: CommentAnchor;
   }): Comment {
     const comment: Comment = {
       id: randomUUID(),
@@ -100,6 +123,7 @@ export class CommentStore extends EventEmitter {
       replies: [],
       createdAt: new Date().toISOString(),
       resolvedAt: null,
+      anchor: params.anchor,
     };
     this.comments.set(comment.id, comment);
     this.emit("change", comment);
@@ -229,7 +253,57 @@ export class CommentStore extends EventEmitter {
 
     for (const comment of fileComments) {
       if (!comment.selectedText) continue;  // file comments don't re-anchor
-      // Find all occurrences in the search window and pick the closest to original offset
+
+      // Try text quote selector first if available
+      if (comment.anchor?.textQuote) {
+        const exact = comment.anchor.textQuote.exact;
+        const searchStart = Math.max(0, comment.offset - 200);
+        const searchEnd = Math.min(newContent.length, comment.offset + exact.length + 200);
+        const searchRegion = newContent.slice(searchStart, searchEnd);
+
+        // Find all occurrences of exact text in the search window
+        const matches: number[] = [];
+        let pos = 0;
+        while (pos < searchRegion.length) {
+          const idx = searchRegion.indexOf(exact, pos);
+          if (idx === -1) break;
+          matches.push(searchStart + idx);
+          pos = idx + 1;
+        }
+
+        if (matches.length > 0) {
+          // Score each match by prefix/suffix similarity
+          let bestOffset = -1;
+          let bestScore = -1;
+          let bestDist = Infinity;
+
+          for (const matchOffset of matches) {
+            const prefixInContent = newContent.slice(Math.max(0, matchOffset - 30), matchOffset);
+            const suffixInContent = newContent.slice(matchOffset + exact.length, matchOffset + exact.length + 30);
+
+            const prefixScore = countMatchingCharsFromEnd(comment.anchor.textQuote.prefix, prefixInContent);
+            const suffixScore = countMatchingCharsFromStart(comment.anchor.textQuote.suffix, suffixInContent);
+            const score = prefixScore + suffixScore;
+            const dist = Math.abs(matchOffset - comment.offset);
+
+            if (score > bestScore || (score === bestScore && dist < bestDist)) {
+              bestScore = score;
+              bestOffset = matchOffset;
+              bestDist = dist;
+            }
+          }
+
+          if (bestOffset !== -1) {
+            comment.offset = bestOffset;
+            comment.anchor.offset = bestOffset;
+            comment.length = comment.anchor.length;
+            continue;
+          }
+        }
+        // Fall through to legacy logic if no text quote match found
+      }
+
+      // Legacy: find all occurrences in the search window and pick the closest to original offset
       const searchStart = Math.max(0, comment.offset - 200);
       const searchEnd = Math.min(newContent.length, comment.offset + comment.length + 200);
       const searchRegion = newContent.slice(searchStart, searchEnd);
