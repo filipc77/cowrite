@@ -105,6 +105,7 @@ function applyTipTapFormat(editor, format) {
     case 'italic': editor.chain().focus().toggleItalic().run(); break;
     case 'strikethrough': editor.chain().focus().toggleStrike().run(); break;
     case 'code': editor.chain().focus().toggleCode().run(); break;
+    case 'codeBlock': editor.chain().focus().toggleCodeBlock().run(); break;
     case 'link': {
       const url = prompt('Link URL:', 'https://');
       if (url) editor.chain().focus().setLink({ href: url }).run();
@@ -149,6 +150,12 @@ function applyMarkdownFormat(format) {
   if (format === "bulletList") {
     const lines = selectedText.split("\n").map(l => `- ${l}`).join("\n");
     send({ type: "edit_apply", offset, length, newText: lines });
+    hideTrigger();
+    return;
+  }
+
+  if (format === "codeBlock") {
+    send({ type: "edit_apply", offset, length, newText: "```\n" + selectedText + "\n```" });
     hideTrigger();
     return;
   }
