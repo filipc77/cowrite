@@ -114,18 +114,36 @@ function applyProseMirrorHighlights(editor) {
  * Convert a text offset (character position in flat text) to a ProseMirror position.
  * Mirrors the traversal logic of doc.textBetween(0, size, '\n', '\n') exactly,
  * tracking both the flat-text offset and the corresponding PM position.
+ *
+ * textBetween inserts '\n' block separators only before textblock nodes
+ * (paragraph, heading, code_block) and block-level leaf nodes (horizontal_rule),
+ * NOT before container blocks (ordered_list, bullet_list, list_item, blockquote).
+ *
  * @param {import('@tiptap/pm/model').Node} doc
  * @param {number} targetOffset
  * @returns {number | null}
  */
 function textOffsetToPmPos(doc, targetOffset) {
   let textPos = 0;
-  let separated = true; // mirrors textBetween initial state
+  let first = true; // mirrors textBetween's `first` flag
   let result = null;
 
   doc.descendants((node, pos) => {
     if (result !== null) return false;
 
+    // Block separator: textBetween only adds '\n' before textblocks and block leaves
+    if (node.isBlock && (node.isTextblock || node.isLeaf)) {
+      if (!first) {
+        if (textPos >= targetOffset) {
+          result = pos + (node.isTextblock ? 1 : 0);
+          return false;
+        }
+        textPos += 1; // block separator '\n'
+      }
+      first = false;
+    }
+
+    // Text node content
     if (node.isText) {
       const len = node.text.length;
       if (textPos + len >= targetOffset) {
@@ -133,31 +151,17 @@ function textOffsetToPmPos(doc, targetOffset) {
         return false;
       }
       textPos += len;
-      separated = false;
-      return false; // text nodes have no children
+      return false;
     }
 
+    // Non-text leaf (hard break, horizontal rule, etc.) — leafText '\n'
     if (node.isLeaf) {
-      // Non-text leaf (hard break, horizontal rule, etc.)
-      // textBetween adds leafText ('\n') for these
       if (textPos >= targetOffset) {
         result = pos;
         return false;
       }
       textPos += 1;
-      separated = false;
       return false;
-    }
-
-    // Block node with children — textBetween inserts '\n' separator
-    // when we've already seen text content (separated === false)
-    if (!separated && node.isBlock) {
-      if (textPos >= targetOffset) {
-        result = pos + 1;
-        return false;
-      }
-      textPos += 1;
-      separated = true;
     }
 
     return true; // descend into children
