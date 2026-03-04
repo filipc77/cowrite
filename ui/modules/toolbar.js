@@ -209,6 +209,10 @@ function submitComment() {
 export function showToolbarForSelection(editor) {
   const { from, to } = editor.state.selection;
   if (from === to) {
+    // Don't clear selectionInfo while the comment popup is open —
+    // focus moving to the textarea collapses ProseMirror's selection,
+    // but submitComment still needs the original selectionInfo.
+    if (!popup.hidden) return;
     hideTrigger();
     return;
   }
