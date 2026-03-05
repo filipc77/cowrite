@@ -25,6 +25,7 @@ Usage:
 
 Options:
   --port, -p    Port for preview server (default: 3377)
+  --open        Auto-open browser (default for 'preview', off for 'serve')
   --no-open     Don't auto-open the browser
   --help, -h    Show this help
 `;
@@ -140,6 +141,23 @@ Start a background agent that watches for cowrite comments and handles them as t
 3. Tell the user the background watcher is running and they can continue working normally. Comments will be handled automatically.
 `;
 
+const SKILL_OPEN = `---
+name: open
+description: Open the cowrite live preview in your browser
+user_invocable: true
+---
+
+# Open Cowrite Preview
+
+Open the live preview browser window for the current project.
+
+## Steps
+
+1. Run \`cowrite open\` to open the preview URL in the default browser.
+   - The port is auto-detected from \`.cowrite-port\`.
+   - If the preview server isn't running, tell the user to check that cowrite is configured as an MCP server.
+`;
+
 function installClaudeIntegration(projectDir: string): void {
   const claudeDir = join(projectDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
@@ -147,9 +165,10 @@ function installClaudeIntegration(projectDir: string): void {
   const settingsPath = join(claudeDir, "settings.json");
   const reviewDir = join(claudeDir, "skills", "review");
   const watchDir = join(claudeDir, "skills", "watch");
+  const openDir = join(claudeDir, "skills", "open");
 
   // Create directories
-  for (const dir of [hooksDir, reviewDir, watchDir]) {
+  for (const dir of [hooksDir, reviewDir, watchDir, openDir]) {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
@@ -162,6 +181,7 @@ function installClaudeIntegration(projectDir: string): void {
   // Write skills (always overwrite to keep in sync)
   writeFileSync(join(reviewDir, "SKILL.md"), SKILL_REVIEW, "utf-8");
   writeFileSync(join(watchDir, "SKILL.md"), SKILL_WATCH, "utf-8");
+  writeFileSync(join(openDir, "SKILL.md"), SKILL_OPEN, "utf-8");
 
   // Merge cowrite hooks into settings.json (preserve existing settings)
   let settings: any = {};
@@ -194,6 +214,7 @@ async function main() {
     args: process.argv.slice(2),
     options: {
       port: { type: "string", short: "p", default: "3377" },
+      open: { type: "boolean", default: false },
       "no-open": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -233,7 +254,7 @@ async function main() {
       writePortFile(projectDir, preview.port);
       const previewUrl = `http://localhost:${preview.port}`;
       process.stderr.write(`Preview: ${previewUrl}\n`);
-      if (!values["no-open"]) openBrowser(previewUrl);
+      if (values.open && !values["no-open"]) openBrowser(previewUrl);
     } catch (err) {
       process.stderr.write(`Preview server failed: ${err}\n`);
       process.stderr.write(`MCP server will still run — comments sync via .cowrite-comments.json\n`);

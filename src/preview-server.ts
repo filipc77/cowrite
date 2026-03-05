@@ -242,6 +242,7 @@ export function createPreviewServer(
         }
         const newContent = content.slice(0, msg.offset) + msg.newText + content.slice(msg.offset + msg.length);
         await writeFile(file, newContent, "utf-8");
+        watcher.setContent(newContent);
         break;
       }
       case "proposal_apply": {
@@ -276,7 +277,18 @@ export function createPreviewServer(
         }
         const pNewContent = pContent.slice(0, pIdx) + reply.proposal.newText + pContent.slice(pIdx + oldText.length);
         await writeFile(pFile, pNewContent, "utf-8");
+        // Suppress chokidar echo and handle adjustments + broadcast manually
+        // to avoid racing persist() calls between adjustOffsets and updateProposalStatus
+        pWatcher.setContent(pNewContent);
+        store.adjustOffsets(pFile, pContent, pNewContent);
         store.updateProposalStatus(msg.commentId, msg.replyId, "applied");
+        // Broadcast file update to clients (since chokidar echo is suppressed)
+        const pHtml = renderToHtml(pNewContent, pFile);
+        for (const [ws2, f] of clientFiles) {
+          if (f === pFile) {
+            send(ws2, { type: "file_update", file: pFile, content: pNewContent, html: pHtml });
+          }
+        }
         break;
       }
       case "proposal_reject": {

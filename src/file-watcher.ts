@@ -24,7 +24,7 @@ export class FileWatcher extends EventEmitter {
     this.watcher = watch(this.filePath, {
       persistent: true,
       ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+      awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 50 },
     });
 
     this.watcher.on("change", async () => {
@@ -45,6 +45,11 @@ export class FileWatcher extends EventEmitter {
     });
 
     return this.lastContent;
+  }
+
+  /** Update the cached content directly (e.g. after our own write) to suppress echo events. */
+  setContent(content: string): void {
+    this.lastContent = content;
   }
 
   getContent(): string {

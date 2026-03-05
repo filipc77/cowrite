@@ -9,6 +9,19 @@ import { renderComments } from './comment-sidebar.js';
 import { $ } from './utils.js';
 
 let pendingUpdate = null;
+let submitEditTimer = 0;
+
+/** Debounced submitEdit — saves 500ms after last keystroke. */
+export function debouncedSubmitEdit() {
+  clearTimeout(submitEditTimer);
+  submitEditTimer = setTimeout(submitEdit, 500);
+}
+
+/** Cancel any pending debounced submit (e.g. when an external file change arrives). */
+function cancelDebouncedSubmit() {
+  clearTimeout(submitEditTimer);
+  state.editorDirty = false;
+}
 
 /**
  * Render mermaid diagrams found in the ProseMirror DOM.
@@ -112,8 +125,6 @@ export function handleFileUpdate(msg) {
 
   const fileChanged = state.currentFile !== msg.file;
   state.currentFile = msg.file;
-  state.currentContent = msg.content;
-  state.currentHtml = msg.html;
 
   if (fileChanged && msg.file) {
     state.undoStack = loadUndoStack(msg.file);
@@ -126,6 +137,8 @@ export function handleFileUpdate(msg) {
 
   if (!isMarkdownFile(msg.file)) {
     // Non-markdown: use server-rendered HTML (plain text with data-offset spans)
+    state.currentContent = msg.content;
+    state.currentHtml = msg.html;
     // Hide TipTap editor, show plain HTML
     const proseMirror = fileContentEl.querySelector('.ProseMirror');
     if (proseMirror) /** @type {HTMLElement} */ (proseMirror).style.display = 'none';
@@ -150,17 +163,26 @@ export function handleFileUpdate(msg) {
   const plainContainer = /** @type {HTMLElement|null} */ (fileContentEl.querySelector('.plain-text-container'));
   if (plainContainer) plainContainer.style.display = 'none';
 
-  if (editor && editor.isFocused) {
-    // Queue update for when editor loses focus
-    pendingUpdate = msg;
-    return;
+  if (editor && editor.isFocused && state.editorDirty) {
+    // External file change arrived while user has unsaved preview edits.
+    // Cancel the debounced submit to prevent it from overwriting the file
+    // with stale editor content, then fall through to apply the update.
+    cancelDebouncedSubmit();
   }
+
+  // Update state after the dirty check so any in-flight submitEdit()
+  // doesn't use mismatched lengths
+  state.currentContent = msg.content;
+  state.currentHtml = msg.html;
 
   if (editor) {
     // Apply content update
     setMarkdownContent(msg.content);
-    // Re-render comments so orphan checks run against fresh editor content
-    renderComments();
+    // Re-render comments so orphan checks run against fresh editor content,
+    // but skip when editor is focused to avoid a full-DOM sidebar flash
+    if (!editor.isFocused) {
+      renderComments();
+    }
     postProcessContent().then(() => applyHighlights(editor, true));
   }
 }

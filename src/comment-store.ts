@@ -221,6 +221,10 @@ export class CommentStore extends EventEmitter {
     if (status === "applied") {
       comment.selectedText = reply.proposal.newText;
       comment.length = reply.proposal.newText.length;
+      if (comment.anchor) {
+        comment.anchor.textQuote.exact = reply.proposal.newText;
+        comment.anchor.length = reply.proposal.newText.length;
+      }
     }
     this.emit("change", comment);
     this.persist().catch((err) => process.stderr.write(`Persist error: ${err}\n`));

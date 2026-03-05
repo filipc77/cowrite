@@ -13,7 +13,7 @@ import { initCommentHighlights, applyHighlights, createCommentHighlightExtension
 import { initToolbar, showToolbarForSelection } from './toolbar.js';
 import { initUndoManager, loadUndoStack } from './undo-manager.js';
 import { createEditor, getEditor, isMarkdownFile, isProgrammaticContentUpdate } from './editor.js';
-import { handleFileUpdate, applyPendingUpdate, submitEdit, reRenderContent } from './markdown-sync.js';
+import { handleFileUpdate, applyPendingUpdate, submitEdit, debouncedSubmitEdit, reRenderContent } from './markdown-sync.js';
 import { createSlashCommandExtension, blockCommandInProgress } from './block-menu.js';
 
 const commentCountEl = $("#commentCount");
@@ -37,6 +37,7 @@ createEditor(fileContentEl, {
   onUpdate(markdown) {
     if (isProgrammaticContentUpdate()) return;
     state.editorDirty = true;
+    debouncedSubmitEdit();
   },
   onSelectionUpdate({ editor }) {
     if (isMarkdownFile(state.currentFile)) {

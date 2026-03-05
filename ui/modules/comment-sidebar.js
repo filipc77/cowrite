@@ -8,19 +8,24 @@ import { getEditor, isMarkdownFile } from './editor.js';
 
 const fileContentEl = $("#fileContent");
 const commentListEl = $("#commentList");
+let lastCommentHtml = '';
 
 export function renderComments() {
   if (state.comments.length === 0) {
-    commentListEl.innerHTML = `
+    const emptyHtml = `
       <div class="empty-state">
         <p>No comments yet.</p>
         <p>Select text to comment, or use + for file comments.</p>
       </div>
     `;
+    if (lastCommentHtml !== emptyHtml) {
+      lastCommentHtml = emptyHtml;
+      commentListEl.innerHTML = emptyHtml;
+    }
     return;
   }
 
-  commentListEl.innerHTML = state.comments.map((c) => {
+  const newHtml = state.comments.map((c) => {
     // Check if the anchor is orphaned (text no longer found in content).
     // For markdown files, anchors use ProseMirror flat text, not raw markdown.
     const isOrphaned = c.selectedText && state.currentContent && (() => {
@@ -128,6 +133,11 @@ export function renderComments() {
       </div>
     `;
   }).join("");
+
+  // Skip DOM rebuild if nothing changed
+  if (newHtml === lastCommentHtml) return;
+  lastCommentHtml = newHtml;
+  commentListEl.innerHTML = newHtml;
 
   // Click to scroll to highlight and mark card active
   for (const card of commentListEl.querySelectorAll(".comment-card")) {
