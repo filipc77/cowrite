@@ -14,6 +14,7 @@ Check for any pending comments left in the Cowrite live preview and address them
 2. For each pending comment:
    a. Read the comment text and the selected text it refers to.
    b. Use `get_file_with_annotations` to see the comment in context.
-   c. Make the requested change or reply explaining why you can't.
-   d. Call `reply_to_comment` to acknowledge the feedback. Your reply automatically marks it as "answered". The user will review and resolve it.
+   c. If the comment requests a text change on selected text, use `propose_change` — the user sees a diff and can Apply or Reject.
+      For questions or clarifications, use `reply_to_comment`.
+   d. NEVER edit files directly. All text changes must go through `propose_change`.
 3. Summarize what was done.
