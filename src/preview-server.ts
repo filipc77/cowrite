@@ -336,6 +336,23 @@ export function createPreviewServer(
         pWatcher.setContent(pNewContent);
         store.adjustOffsets(pFile, pContent, pNewContent);
         store.updateProposalStatus(msg.commentId, msg.replyId, "applied");
+        // For markdown files, the anchor's exact text must be ProseMirror flat text
+        // (stripped of formatting markers) so the client's orphan check can find it.
+        // Also recompute the offset in "stripped" space for proper anchor resolution.
+        const appliedComment = store.get(msg.commentId);
+        if (appliedComment && /\.(md|mdx|markdown)$/i.test(pFile)) {
+          const { plain: strippedNew } = stripMarkdownFormatting(reply.proposal.newText);
+          appliedComment.selectedText = strippedNew;
+          appliedComment.length = strippedNew.length;
+          // Approximate ProseMirror offset: count non-formatting chars before replaceStart
+          const { plain: contentBefore } = stripMarkdownFormatting(pNewContent.slice(0, replaceStart));
+          appliedComment.offset = contentBefore.length;
+          if (appliedComment.anchor) {
+            appliedComment.anchor.textQuote.exact = strippedNew;
+            appliedComment.anchor.length = strippedNew.length;
+            appliedComment.anchor.offset = contentBefore.length;
+          }
+        }
         // Broadcast file update to clients (since chokidar echo is suppressed)
         const pHtml = renderToHtml(pNewContent, pFile);
         for (const [ws2, f] of clientFiles) {

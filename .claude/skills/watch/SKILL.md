@@ -12,12 +12,13 @@ Start a background agent that watches for cowrite comments and handles them as t
 
 1. First, handle any existing pending comments:
    a. Call `get_pending_comments` to check for unresolved comments.
-   b. For each pending comment, use `get_file_with_annotations` to see context, make the change, and call `reply_to_comment`. Your reply automatically marks it as "answered".
+   b. For each pending comment with `selectedText`: use `propose_change` — NEVER edit the file directly. The user sees a diff and can Apply or Reject.
+   c. For file-level comments (no `selectedText`) or questions: use `reply_to_comment`.
 
 2. Then, launch a **background** watcher using the Task tool:
    - Use `subagent_type: "general-purpose"` and `run_in_background: true`
    - The background agent should call `wait_for_comment` in a loop
-   - When a comment arrives, it handles it (read file, make change, reply)
+   - When a comment arrives: if it has `selectedText`, use `propose_change`; otherwise use `reply_to_comment`
    - On timeout, it re-calls `wait_for_comment` immediately
    - The loop continues until the user says stop
 
