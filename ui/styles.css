@@ -1160,6 +1160,36 @@ body.sidebar-resizing {
   height: auto;
 }
 
+/* Mermaid overlay for ProseMirror (renders outside editor to avoid DOM corruption) */
+.mermaid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.mermaid-overlay-item {
+  pointer-events: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid-overlay-item svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hide original mermaid code blocks when overlays are rendered */
+.has-mermaid-overlays .ProseMirror pre:has(code.language-mermaid) {
+  visibility: hidden;
+}
+
 /* ---- Highlight popover ---- */
 .highlight-popover {
   position: fixed;

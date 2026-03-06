@@ -24,38 +24,85 @@ function cancelDebouncedSubmit() {
 }
 
 /**
- * Render mermaid diagrams in the plain-text container (non-markdown files).
- * NEVER modifies ProseMirror DOM — injecting elements there corrupts the
- * doc model and produces "mermaidCopy" artifacts in the serialized markdown.
+ * Render mermaid diagrams.
+ * - Plain-text container: modifies DOM directly (safe, not tracked by ProseMirror).
+ * - ProseMirror (markdown): renders into an overlay container OUTSIDE the editor
+ *   to avoid corrupting the doc model. Original code blocks are hidden via CSS.
  */
 async function renderMermaidDiagrams() {
   if (!window.__mermaid) return;
   const fileContentEl = $('#fileContent');
-  // Only process plain-text container — never touch ProseMirror DOM
-  const container = fileContentEl.querySelector('.plain-text-container');
-  if (!container) return;
-  const blocks = container.querySelectorAll('pre code.language-mermaid');
-  if (blocks.length === 0) return;
 
-  const containers = [];
-  for (const code of blocks) {
+  // --- Plain-text container (non-markdown files) ---
+  const plainContainer = fileContentEl.querySelector('.plain-text-container');
+  if (plainContainer) {
+    const blocks = plainContainer.querySelectorAll('pre code.language-mermaid');
+    const containers = [];
+    for (const code of blocks) {
+      const pre = code.parentElement;
+      if (!pre) continue;
+      if (!pre.parentElement?.classList.contains('mermaid-container')) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mermaid-container';
+        pre.parentElement.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+      }
+      pre.classList.add('mermaid');
+      containers.push(pre);
+    }
+    if (containers.length > 0) {
+      try { await window.__mermaid.run({ nodes: containers }); }
+      catch (err) { console.error('Mermaid rendering failed:', err); }
+    }
+    return;
+  }
+
+  // --- ProseMirror (markdown files) ---
+  // Render into an overlay container OUTSIDE ProseMirror to avoid DOM corruption.
+  const proseMirror = fileContentEl.querySelector('.ProseMirror');
+  if (!proseMirror) return;
+
+  // Remove old overlay
+  const oldOverlay = fileContentEl.querySelector('.mermaid-overlay');
+  if (oldOverlay) oldOverlay.remove();
+
+  const codeBlocks = proseMirror.querySelectorAll('pre code.language-mermaid');
+  if (codeBlocks.length === 0) {
+    fileContentEl.classList.remove('has-mermaid-overlays');
+    return;
+  }
+
+  // Create overlay container as sibling of ProseMirror (not inside it)
+  const overlay = document.createElement('div');
+  overlay.className = 'mermaid-overlay';
+  fileContentEl.appendChild(overlay);
+  fileContentEl.classList.add('has-mermaid-overlays');
+
+  const renderTargets = [];
+  for (const code of codeBlocks) {
     const pre = code.parentElement;
     if (!pre) continue;
-    if (!pre.parentElement?.classList.contains('mermaid-container')) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'mermaid-container';
-      pre.parentElement.insertBefore(wrapper, pre);
-      wrapper.appendChild(pre);
-    }
-    pre.classList.add('mermaid');
-    containers.push(pre);
-  }
-  if (containers.length === 0) return;
 
-  try {
-    await window.__mermaid.run({ nodes: containers });
-  } catch (err) {
-    console.error('Mermaid rendering failed:', err);
+    // Get position of the code block relative to fileContent
+    const preRect = pre.getBoundingClientRect();
+    const parentRect = fileContentEl.getBoundingClientRect();
+    const top = preRect.top - parentRect.top + fileContentEl.scrollTop;
+    const left = preRect.left - parentRect.left;
+
+    const renderDiv = document.createElement('div');
+    renderDiv.className = 'mermaid mermaid-overlay-item';
+    renderDiv.textContent = code.textContent;
+    renderDiv.style.position = 'absolute';
+    renderDiv.style.top = `${top}px`;
+    renderDiv.style.left = `${left}px`;
+    renderDiv.style.width = `${preRect.width}px`;
+    overlay.appendChild(renderDiv);
+    renderTargets.push(renderDiv);
+  }
+
+  if (renderTargets.length > 0) {
+    try { await window.__mermaid.run({ nodes: renderTargets }); }
+    catch (err) { console.error('Mermaid rendering failed:', err); }
   }
 }
 
