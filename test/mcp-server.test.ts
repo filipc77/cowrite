@@ -192,6 +192,61 @@ describe("MCP Server", () => {
     expect(uris).toContain("cowrite://comments");
   });
 
+  it("wait_for_comment should return follow-up when user replies to answered comment", async () => {
+    // Step 1: Add a comment and have the agent reply (simulating first pass)
+    const comment = store.add({
+      file: join(tempDir, "test.md"),
+      offset: 0,
+      length: 5,
+      selectedText: "hello",
+      comment: "is this right?",
+    });
+
+    // Agent gets the comment via wait_for_comment (consumes it from early check)
+    const first = await client.callTool({ name: "wait_for_comment", arguments: { timeout: 1 } });
+    const firstPayload = JSON.parse((first.content as Array<{ type: string; text: string }>)[0].text);
+    expect(firstPayload.event).toBe("new_comment");
+
+    // Agent replies → status becomes "answered"
+    store.addReply(comment.id, "agent", "Yes, it's correct.");
+    expect(store.get(comment.id)?.status).toBe("answered");
+
+    // Step 2: User replies → should reopen to "pending"
+    store.addReply(comment.id, "user", "let's remove this line");
+    expect(store.get(comment.id)?.status).toBe("pending");
+
+    // Step 3: Agent calls wait_for_comment again — early check should find the follow-up
+    const second = await client.callTool({ name: "wait_for_comment", arguments: { timeout: 1 } });
+    const secondPayload = JSON.parse((second.content as Array<{ type: string; text: string }>)[0].text);
+    expect(secondPayload.event).toBe("follow_up");
+    expect(secondPayload.latestUserReply).toBe("let's remove this line");
+  });
+
+  it("wait_for_comment should detect follow-up via event listener (real-time)", async () => {
+    // Setup: comment exists, agent replied, status = "answered"
+    const comment = store.add({
+      file: join(tempDir, "test.md"),
+      offset: 0,
+      length: 5,
+      selectedText: "hello",
+      comment: "is this right?",
+    });
+    store.addReply(comment.id, "agent", "Yes.");
+
+    // Start wait_for_comment — should block since no pending comments
+    const waitPromise = client.callTool({ name: "wait_for_comment", arguments: { timeout: 5 } });
+
+    // Small delay then user replies
+    await new Promise((r) => setTimeout(r, 50));
+    store.addReply(comment.id, "user", "actually, remove it");
+
+    // Should resolve with the follow-up
+    const result = await waitPromise;
+    const payload = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(payload.event).toBe("follow_up");
+    expect(payload.latestUserReply).toBe("actually, remove it");
+  });
+
   it("should read comments resource", async () => {
     store.add({
       file: "/test.md",

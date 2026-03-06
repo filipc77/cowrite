@@ -54,7 +54,7 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
         };
       }
       return {
-        content: [{ type: "text" as const, text: `Reply added to comment ${commentId}.` }],
+        content: [{ type: "text" as const, text: `Reply added to comment ${commentId}. Call wait_for_comment to listen for follow-ups.` }],
       };
     }
   );
@@ -90,7 +90,7 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
         };
       }
       return {
-        content: [{ type: "text" as const, text: `Proposal added to comment ${commentId}. The user can now review and apply or reject it.` }],
+        content: [{ type: "text" as const, text: `Proposal added to comment ${commentId}. The user can now review and apply or reject it. Call wait_for_comment to listen for follow-ups.` }],
       };
     }
   );

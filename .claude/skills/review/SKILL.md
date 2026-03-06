@@ -17,4 +17,6 @@ Check for any pending comments left in the Cowrite live preview and address them
    c. If the comment requests a text change on selected text, use `propose_change` — the user sees a diff and can Apply or Reject.
       For questions or clarifications, use `reply_to_comment`.
    d. NEVER edit files directly. All text changes must go through `propose_change`.
-3. Summarize what was done.
+3. After processing all comments, call `wait_for_comment` to listen for follow-ups.
+   When a follow-up arrives, handle it the same way (step 2) and call `wait_for_comment` again.
+   Keep this loop going until the timeout returns with no new comments.
