@@ -40,7 +40,7 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
   // Tool: reply_to_comment
   server.tool(
     "reply_to_comment",
-    "Reply to a comment from the agent. Your reply automatically marks the comment as 'answered'. The user reviews it and can resolve or reply back.",
+    "Reply to a comment with text. Use for file-level comments, questions, or clarifications. If the comment has selectedText and the user is requesting a text change, use propose_change instead — never edit the file directly.",
     {
       commentId: z.string().describe("The comment ID to reply to"),
       reply: z.string().describe("The reply text"),
@@ -62,7 +62,7 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
   // Tool: propose_change
   server.tool(
     "propose_change",
-    "Propose a text change for a comment's selected text. The user sees a diff and can Apply or Reject. Preferred over direct edits when responding to comments on selected text.",
+    "Propose a text change for a comment's selected text. The user sees a diff and can Apply or Reject. Use this (not direct file edits) when a comment with selectedText requests a change. For questions or clarifications on selected text, use reply_to_comment instead.",
     {
       commentId: z.string().describe("The comment ID to propose a change for"),
       newText: z.string().describe("The replacement text"),
@@ -364,10 +364,10 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
               "Follow this loop:",
               "1. Call `get_pending_comments` to check for any comments already posted.",
               "2. Process each pending comment: read the file, then respond:",
-              "   - If the comment has selectedText, you MUST use `propose_change` — never edit the file directly.",
+              "   - If the comment has selectedText and requests a text change, use `propose_change` — never edit the file directly.",
               "     This includes replacements, additions, and rewrites. The newText replaces the selectedText;",
               "     to add text around it, include the original text plus your additions in newText.",
-              "   - For file-level comments (no selectedText) or pure questions, use `reply_to_comment`.",
+              "   - For questions, clarifications, or file-level comments (no selectedText), use `reply_to_comment`.",
               "   Your reply automatically marks the comment as 'answered'. The user will review and resolve it.",
               "3. Call `wait_for_comment` to block until the next comment (or reopened comment) arrives.",
               "4. When a comment arrives, process it the same way (step 2).",
@@ -375,8 +375,9 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
               "",
               "Tips:",
               "- Use `get_file_with_annotations` to see comments in context within the file.",
-              "- Use `reply_to_comment` only for file-level comments or clarifying questions — never for text changes.",
-              "- NEVER edit the file directly when a comment has selectedText. Always use `propose_change`.",
+              "- Use `reply_to_comment` for file-level comments, questions, or clarifications — never for text changes.",
+              "- When a comment requests a text change on selectedText, always use `propose_change` — never edit the file directly.",
+              "- NEVER edit files directly. All text changes must go through `propose_change` so the user can Apply or Reject.",
               "- Do NOT resolve comments — the user does that after reviewing your work.",
             ].join("\n"),
           },

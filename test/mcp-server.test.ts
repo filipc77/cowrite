@@ -58,18 +58,37 @@ describe("MCP Server", () => {
     expect(comments[0].comment).toBe("Fix this typo");
   });
 
-  it("should reply to a comment and auto-transition to answered", async () => {
+  it("should reply to a file-level comment and auto-transition to answered", async () => {
     const comment = store.add({
       file: join(tempDir, "test.md"),
       offset: 0,
-      length: 5,
-      selectedText: "hello",
-      comment: "test",
+      length: 0,
+      selectedText: "",
+      comment: "general feedback",
     });
 
     await client.callTool({
       name: "reply_to_comment",
       arguments: { commentId: comment.id, reply: "On it!" },
+    });
+
+    expect(store.get(comment.id)?.replies).toHaveLength(1);
+    expect(store.get(comment.id)?.replies[0].from).toBe("agent");
+    expect(store.get(comment.id)?.status).toBe("answered");
+  });
+
+  it("should allow reply_to_comment on comments with selectedText (for questions)", async () => {
+    const comment = store.add({
+      file: join(tempDir, "test.md"),
+      offset: 0,
+      length: 5,
+      selectedText: "hello",
+      comment: "What does this mean?",
+    });
+
+    await client.callTool({
+      name: "reply_to_comment",
+      arguments: { commentId: comment.id, reply: "It's a greeting." },
     });
 
     expect(store.get(comment.id)?.replies).toHaveLength(1);

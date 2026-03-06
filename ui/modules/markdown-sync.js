@@ -107,10 +107,21 @@ function enhanceCodeBlocks() {
 
 /**
  * Post-process ProseMirror content: enhance code blocks + render mermaid.
+ * We must stop ProseMirror's DOM observer during these modifications —
+ * otherwise it picks up the injected elements (language labels, copy buttons,
+ * mermaid SVGs) as content changes, corrupting the doc model and producing
+ * "mermaidCopy" / "codeCopy" artifacts when getMarkdown() is called.
  */
 async function postProcessContent() {
-  enhanceCodeBlocks();
-  await renderMermaidDiagrams();
+  const editor = getEditor();
+  const observer = editor?.view?.domObserver;
+  if (observer?.stop) observer.stop();
+  try {
+    enhanceCodeBlocks();
+    await renderMermaidDiagrams();
+  } finally {
+    if (observer?.start) observer.start();
+  }
 }
 
 /**
