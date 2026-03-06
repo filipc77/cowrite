@@ -33,17 +33,20 @@ const MIME_TYPES: Record<string, string> = {
 const IGNORED_DIRS = new Set(["node_modules", ".git", "dist", ".next", ".cache", "coverage", "__pycache__"]);
 
 /**
- * Strip common markdown inline formatting markers (**, __, ~~) and build a
- * position mapping from stripped text indices back to raw content indices.
- * Used to match ProseMirror flat text against raw markdown file content.
+ * Normalize raw markdown content for matching against ProseMirror flat text.
+ * Strips inline formatting markers (**, __, ~~, single *, single _) and
+ * collapses consecutive newlines into a single \n (ProseMirror's textBetween
+ * uses \n between blocks, while raw markdown uses \n\n between paragraphs).
+ * Builds a position mapping from normalized indices back to raw content indices.
  */
 function stripMarkdownFormatting(raw: string): { plain: string; toRaw: number[] } {
   const toRaw: number[] = [];
   let plain = "";
   let i = 0;
+  let lastWasNewline = false;
 
   while (i < raw.length) {
-    // Skip **, __, ~~
+    // Skip **, __, ~~ (double markers)
     if (i + 1 < raw.length) {
       const pair = raw[i] + raw[i + 1];
       if (pair === "**" || pair === "__" || pair === "~~") {
@@ -52,6 +55,32 @@ function stripMarkdownFormatting(raw: string): { plain: string; toRaw: number[] 
       }
     }
 
+    // Skip single * and _ used as italic/emphasis markers.
+    // Heuristic: skip if adjacent to a non-space character on the "inner" side,
+    // which is how markdown parsers identify emphasis markers.
+    if (raw[i] === "*" || raw[i] === "_") {
+      const next = raw[i + 1];
+      const prev = raw[i - 1];
+      const isOpening = next && next !== " " && next !== "\n";
+      const isClosing = prev && prev !== " " && prev !== "\n";
+      if (isOpening || isClosing) {
+        i++;
+        continue;
+      }
+    }
+
+    // Collapse consecutive newlines into a single \n
+    if (raw[i] === "\n") {
+      if (!lastWasNewline) {
+        toRaw.push(i);
+        plain += "\n";
+        lastWasNewline = true;
+      }
+      i++;
+      continue;
+    }
+
+    lastWasNewline = false;
     toRaw.push(i);
     plain += raw[i];
     i++;

@@ -147,10 +147,10 @@ export function createMcpServer(store: CommentStore, projectDir: string, getPrev
     "wait_for_comment",
     "Block until a new or follow-up comment is posted in the live preview, then return it. Returns an 'event' field: 'new_comment' for brand-new comments, 'follow_up' when the user replied to an already-answered comment. For follow-ups, 'latestUserReply' contains the new reply text. Call again immediately after handling each result to keep listening.",
     {
-      timeout: z.number().optional().describe("Max seconds to wait (default: 30)"),
+      timeout: z.number().optional().describe("Max seconds to wait (default: 300)"),
     },
     ({ timeout }, { signal }: { signal?: AbortSignal }) => {
-      const maxWait = (timeout ?? 30) * 1000;
+      const maxWait = (timeout ?? 300) * 1000;
 
       // Check for comments that arrived while no one was listening.
       // Only return a pending comment if it's brand-new (never seen) or

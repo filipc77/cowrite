@@ -24,20 +24,23 @@ function cancelDebouncedSubmit() {
 }
 
 /**
- * Render mermaid diagrams found in the ProseMirror DOM.
- * Converts `pre > code.language-mermaid` blocks into rendered SVG diagrams.
+ * Render mermaid diagrams in the plain-text container (non-markdown files).
+ * NEVER modifies ProseMirror DOM — injecting elements there corrupts the
+ * doc model and produces "mermaidCopy" artifacts in the serialized markdown.
  */
 async function renderMermaidDiagrams() {
   if (!window.__mermaid) return;
   const fileContentEl = $('#fileContent');
-  const blocks = fileContentEl.querySelectorAll('pre code.language-mermaid');
+  // Only process plain-text container — never touch ProseMirror DOM
+  const container = fileContentEl.querySelector('.plain-text-container');
+  if (!container) return;
+  const blocks = container.querySelectorAll('pre code.language-mermaid');
   if (blocks.length === 0) return;
 
   const containers = [];
   for (const code of blocks) {
     const pre = code.parentElement;
     if (!pre) continue;
-    // Wrap in a mermaid-container if not already
     if (!pre.parentElement?.classList.contains('mermaid-container')) {
       const wrapper = document.createElement('div');
       wrapper.className = 'mermaid-container';
@@ -58,16 +61,19 @@ async function renderMermaidDiagrams() {
 
 /**
  * Enhance code blocks with a header (language label + copy button).
- * Skips mermaid blocks and already-wrapped blocks.
+ * Only operates on the plain-text container (non-markdown files).
+ * NEVER modifies ProseMirror DOM — injecting elements there corrupts the
+ * doc model and produces "codeCopy" artifacts in the serialized markdown.
  */
 function enhanceCodeBlocks() {
   const fileContentEl = $('#fileContent');
-  const codeBlocks = fileContentEl.querySelectorAll('.ProseMirror pre');
+  // Only process plain-text container — never touch ProseMirror DOM
+  const container = fileContentEl.querySelector('.plain-text-container');
+  if (!container) return;
+  const codeBlocks = container.querySelectorAll('pre');
 
   for (const pre of codeBlocks) {
-    // Skip mermaid blocks
     if (pre.closest('.mermaid-container')) continue;
-    // Skip already wrapped blocks
     if (pre.parentElement?.classList.contains('code-block-wrapper')) continue;
 
     const code = pre.querySelector('code');
@@ -94,7 +100,6 @@ function enhanceCodeBlocks() {
     wrapper.appendChild(header);
     wrapper.appendChild(pre);
 
-    // Copy button handler
     copyBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       navigator.clipboard.writeText(code?.textContent || '').then(() => {
@@ -106,22 +111,13 @@ function enhanceCodeBlocks() {
 }
 
 /**
- * Post-process ProseMirror content: enhance code blocks + render mermaid.
- * We must stop ProseMirror's DOM observer during these modifications —
- * otherwise it picks up the injected elements (language labels, copy buttons,
- * mermaid SVGs) as content changes, corrupting the doc model and producing
- * "mermaidCopy" / "codeCopy" artifacts when getMarkdown() is called.
+ * Post-process content after updates.
+ * Code block enhancement and mermaid rendering only apply to the plain-text
+ * container (non-markdown files). ProseMirror DOM is never modified.
  */
 async function postProcessContent() {
-  const editor = getEditor();
-  const observer = editor?.view?.domObserver;
-  if (observer?.stop) observer.stop();
-  try {
-    enhanceCodeBlocks();
-    await renderMermaidDiagrams();
-  } finally {
-    if (observer?.start) observer.start();
-  }
+  enhanceCodeBlocks();
+  await renderMermaidDiagrams();
 }
 
 /**

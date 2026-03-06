@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createPreviewServer } from "../src/preview-server.js";
 import { CommentStore } from "../src/comment-store.js";
 import { tmpdir } from "node:os";
-import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import WebSocket from "ws";
 
@@ -96,6 +96,103 @@ describe("Preview Server", () => {
 
       expect(updateMsg.comments).toHaveLength(1);
       expect(updateMsg.comments[0].comment).toBe("Great heading!");
+
+      ws.close();
+    });
+
+    it("should apply proposal for multi-paragraph markdown text", async () => {
+      // Raw markdown has \n\n between paragraphs
+      const mdContent = "# Title\n\nFirst paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n";
+      await writeFile(testFile, mdContent, "utf-8");
+
+      // ProseMirror's textBetween uses \n between blocks (not \n\n)
+      const proseMirrorText = "First paragraph.\nSecond paragraph.";
+
+      // Add comment with ProseMirror-style selectedText
+      const comment = store.add({
+        file: testFile,
+        offset: 8, // approximate ProseMirror offset
+        length: proseMirrorText.length,
+        selectedText: proseMirrorText,
+        comment: "Rewrite these paragraphs",
+      });
+
+      // Add a proposal reply
+      store.addProposalReply(comment.id, "Rewritten first.\n\nRewritten second.", "Rewrote both paragraphs");
+      const reply = store.get(comment.id)!.replies[0];
+
+      const ws = new WebSocket(`ws://localhost:${port}`);
+
+      // Wait for initial messages (file_update + comments_update)
+      await new Promise<void>((resolve) => {
+        let count = 0;
+        ws.on("message", () => { count++; if (count >= 2) resolve(); });
+      });
+
+      // Apply the proposal
+      ws.send(JSON.stringify({
+        type: "proposal_apply",
+        commentId: comment.id,
+        replyId: reply.id,
+      }));
+
+      // Wait for file_update broadcast
+      await new Promise<void>((resolve) => {
+        ws.on("message", (data) => {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === "file_update") resolve();
+        });
+      });
+
+      const updatedContent = await readFile(testFile, "utf-8");
+      expect(updatedContent).toContain("Rewritten first.");
+      expect(updatedContent).toContain("Rewritten second.");
+      expect(updatedContent).not.toContain("First paragraph.");
+      expect(updatedContent).not.toContain("Second paragraph.");
+      // Third paragraph should be preserved
+      expect(updatedContent).toContain("Third paragraph.");
+
+      ws.close();
+    });
+
+    it("should apply proposal for text with markdown formatting", async () => {
+      const mdContent = "# Title\n\nThis has **bold text** here.\n";
+      await writeFile(testFile, mdContent, "utf-8");
+
+      // ProseMirror strips ** markers
+      const comment = store.add({
+        file: testFile,
+        offset: 10,
+        length: 23, // "This has bold text here."
+        selectedText: "This has bold text here.",
+        comment: "Fix it",
+      });
+
+      store.addProposalReply(comment.id, "This has strong text here.", "Changed bold to strong");
+      const reply = store.get(comment.id)!.replies[0];
+
+      const ws = new WebSocket(`ws://localhost:${port}`);
+      await new Promise<void>((resolve) => {
+        let count = 0;
+        ws.on("message", () => { count++; if (count >= 2) resolve(); });
+      });
+
+      ws.send(JSON.stringify({
+        type: "proposal_apply",
+        commentId: comment.id,
+        replyId: reply.id,
+      }));
+
+      await new Promise<void>((resolve) => {
+        ws.on("message", (data) => {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === "file_update") resolve();
+        });
+      });
+
+      const updatedContent = await readFile(testFile, "utf-8");
+      expect(updatedContent).toContain("This has strong text here.");
+      expect(updatedContent).not.toContain("bold text");
 
       ws.close();
     });
