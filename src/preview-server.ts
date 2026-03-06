@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve, relative } from "node:path";
+import { join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { CommentStore } from "./comment-store.js";
 import { FileWatcher } from "./file-watcher.js";
