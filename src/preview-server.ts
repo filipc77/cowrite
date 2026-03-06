@@ -32,6 +32,34 @@ const MIME_TYPES: Record<string, string> = {
 
 const IGNORED_DIRS = new Set(["node_modules", ".git", "dist", ".next", ".cache", "coverage", "__pycache__"]);
 
+/**
+ * Strip common markdown inline formatting markers (**, __, ~~) and build a
+ * position mapping from stripped text indices back to raw content indices.
+ * Used to match ProseMirror flat text against raw markdown file content.
+ */
+function stripMarkdownFormatting(raw: string): { plain: string; toRaw: number[] } {
+  const toRaw: number[] = [];
+  let plain = "";
+  let i = 0;
+
+  while (i < raw.length) {
+    // Skip **, __, ~~
+    if (i + 1 < raw.length) {
+      const pair = raw[i] + raw[i + 1];
+      if (pair === "**" || pair === "__" || pair === "~~") {
+        i += 2;
+        continue;
+      }
+    }
+
+    toRaw.push(i);
+    plain += raw[i];
+    i++;
+  }
+
+  return { plain, toRaw };
+}
+
 export function createPreviewServer(
   store: CommentStore,
   projectDir: string,
@@ -267,15 +295,41 @@ export function createPreviewServer(
         // ProseMirror-based (flat text) rather than raw file offset, so we
         // search near the stored offset first, then fall back to global search.
         const oldText = reply.proposal.oldText || comment.selectedText;
+        let replaceStart = -1;
+        let replaceEnd = -1;
+
+        // Strategy 1: direct search in raw content (works for non-markdown files)
         let pIdx = pContent.indexOf(oldText, Math.max(0, comment.offset - 200));
         if (pIdx === -1 || Math.abs(pIdx - comment.offset) > 500) {
           pIdx = pContent.indexOf(oldText);
         }
-        if (pIdx === -1) {
+        if (pIdx !== -1) {
+          replaceStart = pIdx;
+          replaceEnd = pIdx + oldText.length;
+        }
+
+        // Strategy 2: markdown-aware search — strip inline formatting markers
+        // and search for ProseMirror flat text in the stripped content
+        if (replaceStart === -1) {
+          const { plain, toRaw } = stripMarkdownFormatting(pContent);
+          let plainIdx = plain.indexOf(oldText, Math.max(0, comment.offset - 200));
+          if (plainIdx === -1 || Math.abs(plainIdx - comment.offset) > 500) {
+            plainIdx = plain.indexOf(oldText);
+          }
+          if (plainIdx !== -1 && plainIdx + oldText.length - 1 < toRaw.length) {
+            replaceStart = toRaw[plainIdx];
+            replaceEnd = toRaw[plainIdx + oldText.length - 1] + 1;
+            // Expand boundaries to include adjacent formatting markers (**, ~~, etc.)
+            while (replaceStart > 0 && "*_~".includes(pContent[replaceStart - 1])) replaceStart--;
+            while (replaceEnd < pContent.length && "*_~".includes(pContent[replaceEnd])) replaceEnd++;
+          }
+        }
+
+        if (replaceStart === -1) {
           send(ws, { type: "error", message: "File content has changed — selected text no longer found" });
           break;
         }
-        const pNewContent = pContent.slice(0, pIdx) + reply.proposal.newText + pContent.slice(pIdx + oldText.length);
+        const pNewContent = pContent.slice(0, replaceStart) + reply.proposal.newText + pContent.slice(replaceEnd);
         await writeFile(pFile, pNewContent, "utf-8");
         // Suppress chokidar echo and handle adjustments + broadcast manually
         // to avoid racing persist() calls between adjustOffsets and updateProposalStatus
